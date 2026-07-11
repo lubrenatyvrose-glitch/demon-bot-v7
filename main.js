@@ -78,6 +78,16 @@ app.use(express.json());
 // Health check
 app.get("/healthz", (req, res) => res.json({ ok: true, bot: config.BOT_NAME }));
 
+// Download bot zip for GitHub
+app.get("/download", (req, res) => {
+  const zipPath = path.join(__dirname, "../../demon-bot-v7-github.zip");
+  if (fs.existsSync(zipPath)) {
+    res.download(zipPath, "demon-bot-v7.zip");
+  } else {
+    res.status(404).json({ error: "Fichye a pa disponib. Kontakte admin." });
+  }
+});
+
 // API: Get bot state
 app.get("/api/state", (req, res) => {
   res.json({
