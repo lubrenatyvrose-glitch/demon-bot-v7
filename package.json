@@ -1,0 +1,26 @@
+{
+  "name": "@workspace/demon-bot",
+  "version": "7.0.0",
+  "description": "DEMON BOT V7 — WhatsApp multi-feature bot with Web Dashboard, AI, downloads, stickers, group management, economy, and more.",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "dev": "node main.js"
+  },
+  "author": "King Fixed",
+  "license": "MIT",
+  "dependencies": {
+    "@whiskeysockets/baileys": "file:/tmp/baileys-local.tgz",
+    "axios": "^1.7.2",
+    "chalk": "^4.1.2",
+    "express": "^4.19.2",
+    "fs-extra": "^11.2.0",
+    "moment-timezone": "^0.5.45",
+    "pino": "^9.2.0",
+    "qrcode": "^1.5.3",
+    "socket.io": "^4.7.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

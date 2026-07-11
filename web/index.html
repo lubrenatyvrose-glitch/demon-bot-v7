@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔥 DEMON BOT V7 — Dashboard</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', 'Fira Code', monospace;
+      background: #0a0a0f;
+      color: #e0d6ff;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: radial-gradient(ellipse at 50% 0%, #1a0a2e 0%, #0a0a0f 70%);
+      z-index: -1;
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+    /* HEADER */
+    .header {
+      text-align: center; padding: 30px 20px 20px;
+      border-bottom: 2px solid #6b21a8;
+      margin-bottom: 25px;
+    }
+    .header .logo { font-size: 2.8rem; margin-bottom: 8px; }
+    .header h1 {
+      font-size: 2rem; font-weight: 900; letter-spacing: 3px;
+      background: linear-gradient(135deg, #ef4444, #dc2626, #a855f7);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .header .subtitle { color: #8b5cf6; font-size: 0.85rem; margin-top: 5px; letter-spacing: 2px; }
+
+    /* STATUS */
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 20px; border-radius: 30px; font-size: 0.85rem;
+      font-weight: 700; letter-spacing: 1px; margin: 15px 0;
+    }
+    .status-badge.online  { background: #065f46; color: #6ee7b7; border: 1px solid #10b981; }
+    .status-badge.connecting { background: #78350f; color: #fcd34d; border: 1px solid #f59e0b; animation: pulse 1.5s infinite; }
+    .status-badge.offline { background: #450a0a; color: #fca5a5; border: 1px solid #ef4444; }
+    .status-badge.qr      { background: #1e1b4b; color: #c4b5fd; border: 1px solid #8b5cf6; animation: pulse 1.5s infinite; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .status-dot.online  { background: #10b981; box-shadow: 0 0 10px #10b981; }
+    .status-dot.connecting, .status-dot.qr { background: #f59e0b; box-shadow: 0 0 10px #f59e0b; }
+    .status-dot.offline { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+
+    /* GRID */
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: rgba(15,10,30,0.9); border: 1px solid #2d1b4e;
+      border-radius: 16px; padding: 20px; backdrop-filter: blur(10px);
+    }
+    .card.full { grid-column: 1 / -1; }
+    .card h2 {
+      font-size: 0.95rem; letter-spacing: 2px; color: #a855f7;
+      margin-bottom: 15px; text-transform: uppercase;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card h2::before { content: '▸'; color: #ef4444; }
+
+    /* QR */
+    .qr-container {
+      text-align: center; padding: 16px;
+      background: #fff; border-radius: 12px; display: inline-block;
+    }
+    .qr-container img { width: 220px; height: 220px; }
+    .qr-label { color: #000; font-weight: 700; margin-top: 8px; font-size: 0.75rem; }
+
+    /* PAIRING CODE */
+    .pairing-code {
+      font-size: 2.5rem; font-weight: 900; letter-spacing: 8px;
+      color: #fbbf24; text-align: center; padding: 20px;
+      background: rgba(251,191,36,0.1); border: 2px dashed #fbbf24;
+      border-radius: 12px; margin: 10px 0;
+    }
+    .pairing-section { display: none; margin-top: 15px; }
+    .pairing-section input {
+      background: #1a1025; border: 1px solid #6b21a8; color: #e0d6ff;
+      padding: 12px 16px; border-radius: 8px; width: 100%; font-size: 1rem;
+      font-family: inherit; margin-bottom: 10px;
+    }
+    .pairing-section input:focus { outline: none; border-color: #a855f7; }
+
+    /* BUTTONS */
+    .btn {
+      padding: 10px 20px; border-radius: 8px; border: none;
+      font-weight: 700; cursor: pointer; font-family: inherit;
+      font-size: 0.9rem; letter-spacing: 1px; transition: all 0.2s; width: 100%;
+    }
+    .btn-primary { background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff; }
+    .btn-primary:hover { background: linear-gradient(135deg, #6d28d9, #9333ea); transform: translateY(-1px); }
+    .btn-danger  { background: linear-gradient(135deg, #dc2626, #ef4444); color: #fff; }
+    .btn-danger:hover  { background: linear-gradient(135deg, #b91c1c, #dc2626); }
+    .btn-secondary { background: rgba(107,33,168,0.3); color: #c4b5fd; border: 1px solid #6b21a8; }
+    .btn-secondary:hover { background: rgba(107,33,168,0.5); }
+    .mt10 { margin-top: 10px; }
+
+    /* STATS */
+    .stat-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .stat-card {
+      flex: 1; min-width: 120px;
+      background: rgba(107,33,168,0.15); border: 1px solid #3b1f5e;
+      border-radius: 12px; padding: 16px; text-align: center;
+    }
+    .stat-value { font-size: 1.8rem; font-weight: 900; color: #a855f7; }
+    .stat-label { font-size: 0.7rem; color: #8b5cf6; letter-spacing: 1px; margin-top: 4px; }
+
+    /* BOT INFO */
+    .info-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #1e1030; }
+    .info-row:last-child { border: none; }
+    .info-label { color: #8b5cf6; font-size: 0.8rem; }
+    .info-value { color: #e0d6ff; font-weight: 600; font-size: 0.85rem; }
+
+    /* LOGS */
+    .log-container {
+      height: 280px; overflow-y: auto; font-size: 0.75rem;
+      background: #060410; border-radius: 8px; padding: 10px;
+      border: 1px solid #1e1030; scrollbar-width: thin;
+    }
+    .log-entry { padding: 3px 0; border-bottom: 1px solid #0f0820; line-height: 1.4; }
+    .log-time  { color: #6b21a8; margin-right: 8px; }
+    .log-info  { color: #a5f3fc; }
+    .log-error { color: #fca5a5; }
+    .log-warn  { color: #fcd34d; }
+
+    /* EMPTY */
+    .empty-state { text-align: center; padding: 30px 20px; color: #4b2d7a; }
+    .empty-state .icon { font-size: 3rem; margin-bottom: 10px; }
+
+    /* CONNECTED INFO */
+    .connected-info {
+      text-align: center; padding: 15px;
+      background: rgba(6,95,70,0.2); border: 1px solid #10b981;
+      border-radius: 12px; margin-top: 10px;
+    }
+    .connected-info .name { font-size: 1.1rem; font-weight: 700; color: #6ee7b7; }
+    .connected-info .jid  { font-size: 0.8rem; color: #10b981; margin-top: 4px; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo">🔥</div>
+    <h1>DEMON BOT V7</h1>
+    <div class="subtitle">PREMIUM WHATSAPP BOT — WEB DASHBOARD</div>
+    <div id="statusBadge" class="status-badge connecting">
+      <span class="status-dot connecting"></span>
+      <span id="statusText">CONNECTING...</span>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- QR / PAIRING CARD -->
+    <div class="card">
+      <h2>WhatsApp Connection</h2>
+      <div id="qrSection" class="empty-state">
+        <div class="icon">⏳</div>
+        <p>Waiting for QR code...</p>
+      </div>
+      <div id="pairingCodeDisplay"></div>
+      <div id="connectedSection" style="display:none;" class="connected-info">
+        <div class="icon">✅</div>
+        <div class="name" id="connectedName">Connected</div>
+        <div class="jid"  id="connectedJid"></div>
+      </div>
+
+      <!-- PAIRING TOGGLE -->
+      <button class="btn btn-secondary mt10" id="togglePairingBtn" onclick="togglePairing()">
+        📱 USE PAIRING CODE INSTEAD
+      </button>
+      <div class="pairing-section" id="pairingSection">
+        <input type="text" id="phoneInput" placeholder="Phone with country code (e.g. 50955394345)" />
+        <button class="btn btn-primary" onclick="requestPairing()">🔑 GET PAIRING CODE</button>
+      </div>
+    </div>
+
+    <!-- STATS CARD -->
+    <div class="card">
+      <h2>Live Stats</h2>
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-value" id="statMsgs">0</div>
+          <div class="stat-label">MESSAGES</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statCmds">0</div>
+          <div class="stat-label">COMMANDS</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statErrors">0</div>
+          <div class="stat-label">ERRORS</div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div class="info-row">
+          <span class="info-label">BOT NAME</span>
+          <span class="info-value" id="infoBotName">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">OWNER</span>
+          <span class="info-value" id="infoOwner">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">PREFIX</span>
+          <span class="info-value" id="infoPrefix">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">MODE</span>
+          <span class="info-value" id="infoMode">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">UPTIME</span>
+          <span class="info-value" id="infoUptime">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">COMMANDS LOADED</span>
+          <span class="info-value" id="infoCommands">—</span>
+        </div>
+      </div>
+
+      <button class="btn btn-danger mt10" onclick="restartBot()">🔄 RESTART BOT</button>
+    </div>
+
+    <!-- LOGS CARD -->
+    <div class="card full">
+      <h2>Live Console Logs</h2>
+      <div class="log-container" id="logContainer">
+        <div class="log-entry">
+          <span class="log-time">--:--:--</span>
+          <span class="log-info">Waiting for bot logs...</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const socket = io();
+  let updateInterval;
+
+  function setStatus(state) {
+    const badge = document.getElementById('statusBadge');
+    const text  = document.getElementById('statusText');
+    const dot   = badge.querySelector('.status-dot');
+    badge.className = 'status-badge ' + (state === 'open' ? 'online' : state === 'qr' ? 'qr' : state === 'close' ? 'offline' : 'connecting');
+    dot.className   = 'status-dot '   + (state === 'open' ? 'online' : state === 'qr' ? 'qr'  : state === 'close' ? 'offline' : 'connecting');
+    text.textContent = state === 'open' ? 'ONLINE ✅' : state === 'qr' ? 'SCAN QR CODE 📷' : state === 'close' ? 'OFFLINE ❌' : 'CONNECTING...';
+  }
+
+  function applyState(data) {
+    setStatus(data.connection || 'connecting');
+    if (data.stats) {
+      document.getElementById('statMsgs').textContent   = data.stats.messagesProcessed || 0;
+      document.getElementById('statCmds').textContent   = data.stats.commandsExecuted  || 0;
+      document.getElementById('statErrors').textContent = data.stats.errors || 0;
+    }
+    if (data.config) {
+      document.getElementById('infoBotName').textContent  = data.config.BOT_NAME  || '—';
+      document.getElementById('infoOwner').textContent    = data.config.OWNER_NAME || '—';
+      document.getElementById('infoPrefix').textContent   = data.config.PREFIX     || '—';
+      document.getElementById('infoMode').textContent     = data.config.MODE       || '—';
+    }
+    if (data.totalCommands) document.getElementById('infoCommands').textContent = data.totalCommands;
+    if (data.uptime !== undefined) document.getElementById('infoUptime').textContent = formatUptime(data.uptime);
+
+    if (data.connection === 'open') {
+      document.getElementById('qrSection').style.display = 'none';
+      document.getElementById('connectedSection').style.display = 'block';
+      if (data.userName) document.getElementById('connectedName').textContent = data.userName;
+      if (data.userJid)  document.getElementById('connectedJid').textContent  = data.userJid;
+    }
+  }
+
+  // Initial fetch
+  fetch('/api/state').then(r => r.json()).then(data => {
+    applyState(data);
+    if (data.qr) showQR(data.qr);
+    if (data.pairingCode) showPairingCode(data.pairingCode);
+    if (data.logs) {
+      data.logs.slice().reverse().forEach(entry => addLog(entry));
+    }
+  }).catch(e => console.error('State fetch error:', e));
+
+  // Socket events
+  socket.on('state', (data) => applyState(data));
+  socket.on('logs', (entries) => {
+    entries.slice().reverse().forEach(e => addLog(e));
+  });
+
+  socket.on('qr', (qrDataUrl) => {
+    setStatus('qr');
+    showQR(qrDataUrl);
+  });
+
+  socket.on('pairingCode', (code) => {
+    showPairingCode(code);
+  });
+
+  socket.on('stats', (stats) => {
+    document.getElementById('statMsgs').textContent   = stats.messagesProcessed || 0;
+    document.getElementById('statCmds').textContent   = stats.commandsExecuted  || 0;
+    document.getElementById('statErrors').textContent = stats.errors || 0;
+  });
+
+  socket.on('log', (entry) => addLog(entry));
+
+  function showQR(qrDataUrl) {
+    document.getElementById('qrSection').style.display = 'block';
+    document.getElementById('connectedSection').style.display = 'none';
+    document.getElementById('qrSection').innerHTML =
+      `<div class="qr-container">
+         <img src="${qrDataUrl}" alt="QR Code"/>
+         <div class="qr-label">📱 Scan with WhatsApp to connect</div>
+       </div>`;
+  }
+
+  function showPairingCode(code) {
+    document.getElementById('pairingCodeDisplay').innerHTML =
+      `<div class="pairing-code">${code}</div>
+       <p style="text-align:center;color:#fcd34d;font-size:0.8rem;">Enter this code in WhatsApp → Settings → Linked Devices</p>`;
+  }
+
+  function addLog(entry) {
+    const container = document.getElementById('logContainer');
+    const time = new Date(entry.time).toLocaleTimeString();
+    const div  = document.createElement('div');
+    div.className = 'log-entry';
+    div.innerHTML = `<span class="log-time">${time}</span> <span class="log-${entry.level}">${escapeHtml(entry.msg)}</span>`;
+    container.prepend(div);
+    if (container.children.length > 150) container.lastChild.remove();
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function formatUptime(secs) {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return `${h}h ${m}m ${s}s`;
+  }
+
+  // Periodic state refresh
+  updateInterval = setInterval(() => {
+    fetch('/api/state').then(r => r.json()).then(data => {
+      if (data.uptime !== undefined) document.getElementById('infoUptime').textContent = formatUptime(data.uptime);
+      if (data.stats) {
+        document.getElementById('statMsgs').textContent   = data.stats.messagesProcessed || 0;
+        document.getElementById('statCmds').textContent   = data.stats.commandsExecuted  || 0;
+        document.getElementById('statErrors').textContent = data.stats.errors || 0;
+      }
+    }).catch(() => {});
+  }, 5000);
+
+  function togglePairing() {
+    const section = document.getElementById('pairingSection');
+    const btn     = document.getElementById('togglePairingBtn');
+    const visible = section.style.display === 'block';
+    section.style.display = visible ? 'none' : 'block';
+    btn.textContent = visible ? '📱 USE PAIRING CODE INSTEAD' : '📷 USE QR CODE INSTEAD';
+  }
+
+  function requestPairing() {
+    const phone = document.getElementById('phoneInput').value.trim();
+    if (!phone) { alert('Enter your phone number with country code'); return; }
+    fetch('/api/pairing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phoneNumber: phone }),
+    }).then(r => r.json()).then(d => {
+      if (d.ok) {
+        document.getElementById('pairingCodeDisplay').innerHTML =
+          '<p style="color:#fcd34d;text-align:center;padding:15px;">⏳ Requesting pairing code...</p>';
+      }
+    });
+  }
+
+  function restartBot() {
+    if (!confirm('Restart the bot connection?')) return;
+    fetch('/api/restart', { method: 'POST' });
+    setStatus('connecting');
+    document.getElementById('qrSection').innerHTML = '<div class="empty-state"><div class="icon">⏳</div><p>Restarting...</p></div>';
+    document.getElementById('connectedSection').style.display = 'none';
+  }
+</script>
+</body>
+</html>
