@@ -4,8 +4,12 @@
 
 const config = require("../../config");
 const { getGroupSettings } = require("../lib/database");
-const { sendText, reply } = require("../lib/sendMessage");
+const { sendText, reply, sendImage } = require("../lib/sendMessage");
 const chalk = require("chalk");
+const path = require("path");
+const fs = require("fs-extra");
+
+const LOGO_PATH = path.join(__dirname, "../../src/demon-bot-logo.png");
 
 /**
  * Handle group-related events:
@@ -67,10 +71,15 @@ async function handleMemberAdd(sock, groupId, addedList, settings) {
         `┃ Enjoy your stay! 🔥\n` +
         `╰━━━━━━━━━━━━━━━━━━⬣`;
 
-      await sock.sendMessage(groupId, {
-        text: welcomeMsg,
-        mentions: [jid],
-      });
+      // Send logo with welcome message if available
+      if (fs.existsSync(LOGO_PATH)) {
+        const logoBuffer = fs.readFileSync(LOGO_PATH);
+        await sendImage(sock, groupId, logoBuffer, welcomeMsg, {
+          mentions: [jid],
+        });
+      } else {
+        await sock.sendMessage(groupId, { text: welcomeMsg, mentions: [jid] });
+      }
     }
   } catch (e) {
     console.error(chalk.red(`[WELCOME ERROR] ${e.message}`));

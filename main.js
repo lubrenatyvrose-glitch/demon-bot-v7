@@ -232,6 +232,36 @@ async function startBot() {
         console.log(chalk.green(`👤 Name: ${sock.user?.name}`));
         console.log(chalk.cyan(`🤖 Commands loaded: ${getAllCommands().length}`));
         console.log(chalk.magenta(`🌐 Dashboard: http://localhost:${PORT}\n`));
+
+        // ── Send greeting with logo to owner on connect ─────────
+        setTimeout(async () => {
+          try {
+            const ownerJid = config.OWNER_NUMBER[0] + "@s.whatsapp.net";
+            const logoPath = path.join(__dirname, "src/demon-bot-logo.png");
+            const greetMsg =
+              `╭━━〔 🔥 *${config.BOT_NAME}* 🔥 〕━━⬣\n` +
+              `┃ ✅ *Bot konekte ak siksè!*\n` +
+              `┃ 📱 Nimewo: *${sock.user?.id?.split(":")[0]}*\n` +
+              `┃ 👤 Non: *${sock.user?.name || "Bot"}*\n` +
+              `┃ 🤖 Kòmand: *${getAllCommands().length}*\n` +
+              `┃ ⚡ Prefix: *${config.PREFIX}*\n` +
+              `┃\n` +
+              `┃ Tape *${config.PREFIX}menu* pou wè tout kòmand yo\n` +
+              `╰━━━━━━━━━━━━━━━━━━━━━━━━━━⬣`;
+
+            if (fs.existsSync(logoPath)) {
+              const logoBuffer = fs.readFileSync(logoPath);
+              await sock.sendMessage(ownerJid, {
+                image: logoBuffer,
+                caption: greetMsg,
+              });
+            } else {
+              await sock.sendMessage(ownerJid, { text: greetMsg });
+            }
+          } catch (e) {
+            // Silently ignore if owner message fails
+          }
+        }, 3000);
       }
     });
 

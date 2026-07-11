@@ -1,5 +1,5 @@
 {
-  "name": "demon-bot-v7",
+  "name": "@workspace/demon-bot",
   "version": "7.0.0",
   "description": "DEMON BOT V7 — WhatsApp multi-feature bot with Web Dashboard, AI, downloads, stickers, group management, economy, and more.",
   "main": "main.js",
