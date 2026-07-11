@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: demon-bot-v7
+    runtime: node
+    plan: free           # upgrade to "starter" for persistent disk
+    buildCommand: npm install
+    startCommand: node main.js
+    healthCheckPath: /
+
+    # ── Environment Variables ──────────────────
+    # Mark sensitive ones as sync: false so Render asks you to fill them in
+    envVars:
+      - key: BOT_NAME
+        value: DEMON BOT V7
+      - key: OWNER_NAME
+        value: King Fixed
+      - key: PREFIX
+        value: "."
+      - key: MODE
+        value: public
+      - key: TIMEZONE
+        value: America/Port-au-Prince
+      - key: USE_PAIRING_CODE
+        value: "false"
+      - key: NODE_ENV
+        value: production
+
+      # Fill these in on Render dashboard (sensitive):
+      - key: OWNER_NUMBER
+        sync: false        # Render will ask you to type this
+      - key: GEMINI_API_KEY
+        sync: false        # Render will ask you to type this
+
+    # ── Persistent Disk (keeps WhatsApp session after restarts) ──
+    # IMPORTANT: Requires paid plan (Starter $7/mo).
+    # Without this, you must re-scan the QR code after every deploy.
+    # Uncomment the lines below once you upgrade:
+    # disk:
+    #   name: session
+    #   mountPath: /opt/render/project/src/session
+    #   sizeGB: 1

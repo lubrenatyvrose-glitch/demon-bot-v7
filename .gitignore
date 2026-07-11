@@ -1,3 +1,28 @@
+# Dependencies
 node_modules/
+
+# WhatsApp session (contains your auth keys — NEVER commit this)
 session/
-src/database/*.json
+session_*/
+auth_info*/
+*.zip
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Temporary
+tmp/
+temp/
