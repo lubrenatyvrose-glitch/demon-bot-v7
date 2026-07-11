@@ -132,6 +132,47 @@ app.get("/api/stats", (req, res) => {
   });
 });
 
+// API: Get all groups bot is in (live from WhatsApp)
+app.get("/api/groups", async (req, res) => {
+  if (!sock || global.__BOT_STATE.connection !== "open") {
+    return res.json({ ok: false, error: "Bot pa konekte ankò. Skan QR code a anvan.", groups: [] });
+  }
+  try {
+    const { getGroupSettings } = require("./src/lib/database");
+    const participating = await sock.groupFetchAllParticipating();
+    const groups = Object.entries(participating).map(([jid, meta]) => {
+      const settings = getGroupSettings(jid);
+      return {
+        jid,
+        name: meta.subject || "Gwoup San Non",
+        participants: meta.participants?.length || 0,
+        active: settings.botActive !== false, // default = active
+        welcome: settings.welcome,
+        antiLink: settings.antiLink,
+      };
+    });
+    // Sort: active first, then by name
+    groups.sort((a, b) => (b.active - a.active) || a.name.localeCompare(b.name));
+    res.json({ ok: true, groups });
+  } catch (e) {
+    console.error("[GROUPS API]", e.message);
+    res.json({ ok: false, error: e.message, groups: [] });
+  }
+});
+
+// API: Toggle bot active in a group
+app.post("/api/groups/toggle", (req, res) => {
+  const { jid, field, value } = req.body;
+  if (!jid) return res.json({ ok: false, error: "JID requis" });
+  const { getGroupSettings, saveGroupSettings } = require("./src/lib/database");
+  const current = getGroupSettings(jid);
+  const update = {};
+  update[field || "botActive"] = value !== undefined ? value : !current[field || "botActive"];
+  saveGroupSettings(jid, update);
+  res.json({ ok: true, jid, updated: update });
+  console.log(`[GROUPS] ${jid} → ${JSON.stringify(update)}`);
+});
+
 io.on("connection", (socket) => {
   socket.emit("state", {
     connection: global.__BOT_STATE.connection,

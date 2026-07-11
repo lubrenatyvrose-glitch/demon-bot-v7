@@ -144,6 +144,76 @@
     }
     .connected-info .name { font-size: 1.1rem; font-weight: 700; color: #6ee7b7; }
     .connected-info .jid  { font-size: 0.8rem; color: #10b981; margin-top: 4px; }
+
+    /* GROUPS PANEL */
+    .groups-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px; flex-wrap: wrap; gap: 8px;
+    }
+    .groups-toolbar input {
+      background: #1a1025; border: 1px solid #3b1f5e; color: #e0d6ff;
+      padding: 8px 12px; border-radius: 8px; font-family: inherit;
+      font-size: 0.82rem; flex: 1; min-width: 140px;
+    }
+    .groups-toolbar input:focus { outline: none; border-color: #a855f7; }
+    .btn-sm {
+      padding: 7px 14px; border-radius: 7px; border: none;
+      font-weight: 700; cursor: pointer; font-family: inherit;
+      font-size: 0.8rem; letter-spacing: 1px; transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .btn-sm.primary { background: linear-gradient(135deg,#7c3aed,#a855f7); color:#fff; }
+    .btn-sm.primary:hover { background: linear-gradient(135deg,#6d28d9,#9333ea); }
+    .btn-sm.green  { background: linear-gradient(135deg,#065f46,#10b981); color:#fff; }
+    .btn-sm.red    { background: linear-gradient(135deg,#7f1d1d,#ef4444); color:#fff; }
+
+    .group-list { max-height: 360px; overflow-y: auto; scrollbar-width: thin; }
+    .group-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 12px; margin-bottom: 8px;
+      background: rgba(107,33,168,0.1); border: 1px solid #2d1b4e;
+      border-radius: 10px; gap: 10px; flex-wrap: wrap;
+      transition: border-color 0.2s;
+    }
+    .group-item.inactive { opacity: 0.45; border-color: #1a0f2e; }
+    .group-item:hover { border-color: #6b21a8; }
+    .group-info { flex: 1; min-width: 0; }
+    .group-name {
+      font-weight: 700; font-size: 0.88rem; color: #e0d6ff;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .group-meta { font-size: 0.72rem; color: #8b5cf6; margin-top: 3px; }
+    .group-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+    /* Toggle switch */
+    .toggle-wrap { display: flex; align-items: center; gap: 6px; }
+    .toggle-label { font-size: 0.72rem; color: #8b5cf6; white-space: nowrap; }
+    .toggle {
+      position: relative; width: 42px; height: 23px;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: #3b1f5e; border-radius: 23px; transition: 0.3s;
+    }
+    .toggle-slider:before {
+      content: ""; position: absolute;
+      width: 17px; height: 17px; left: 3px; bottom: 3px;
+      background: #8b5cf6; border-radius: 50%; transition: 0.3s;
+    }
+    .toggle input:checked + .toggle-slider { background: #065f46; }
+    .toggle input:checked + .toggle-slider:before {
+      transform: translateX(19px); background: #10b981;
+    }
+
+    .groups-summary {
+      font-size: 0.78rem; color: #6b7280; text-align: center; margin-bottom: 10px;
+    }
+    .groups-summary span { color: #a855f7; font-weight: 700; }
+    .loading-groups {
+      text-align: center; padding: 30px; color: #4b2d7a; font-size: 0.85rem;
+    }
   </style>
 </head>
 <body>
@@ -232,6 +302,29 @@
       </div>
 
       <button class="btn btn-danger mt10" onclick="restartBot()">🔄 RESTART BOT</button>
+    </div>
+
+    <!-- GROUPS CARD -->
+    <div class="card full" id="groupsCard">
+      <h2>👥 Gwoup yo — Aktive / Deaktive Bot</h2>
+
+      <div class="groups-toolbar">
+        <input type="text" id="groupSearch" placeholder="🔍 Chèche gwoup..." oninput="filterGroups()" />
+        <button class="btn-sm primary" onclick="loadGroups()">🔄 Rafraîchi</button>
+        <button class="btn-sm green"   onclick="toggleAll(true)">✅ Aktive Tout</button>
+        <button class="btn-sm red"     onclick="toggleAll(false)">❌ Deaktive Tout</button>
+      </div>
+
+      <div class="groups-summary" id="groupsSummary" style="display:none;">
+        <span id="groupsActiveCount">0</span> aktif sou <span id="groupsTotalCount">0</span> gwoup
+      </div>
+
+      <div id="groupsContainer" class="group-list">
+        <div class="loading-groups">
+          <div style="font-size:2rem;margin-bottom:8px;">👥</div>
+          Konekte WhatsApp an premye pou wè gwoup yo
+        </div>
+      </div>
     </div>
 
     <!-- LOGS CARD -->
@@ -397,6 +490,132 @@
     document.getElementById('qrSection').innerHTML = '<div class="empty-state"><div class="icon">⏳</div><p>Restarting...</p></div>';
     document.getElementById('connectedSection').style.display = 'none';
   }
+
+  // ═══════════════════════════════════════════════════
+  // GROUPS PANEL
+  // ═══════════════════════════════════════════════════
+  let allGroups = [];
+
+  async function loadGroups() {
+    const container = document.getElementById('groupsContainer');
+    container.innerHTML = '<div class="loading-groups">⏳ Chaje gwoup yo...</div>';
+    try {
+      const res  = await fetch('/api/groups');
+      const data = await res.json();
+      if (!data.ok) {
+        container.innerHTML = `<div class="loading-groups">⚠️ ${escapeHtml(data.error || 'Erè enkoni')}</div>`;
+        return;
+      }
+      allGroups = data.groups;
+      renderGroups(allGroups);
+    } catch (e) {
+      container.innerHTML = '<div class="loading-groups">❌ Pa kapab chaje gwoup yo</div>';
+    }
+  }
+
+  function renderGroups(groups) {
+    const container = document.getElementById('groupsContainer');
+    const summary   = document.getElementById('groupsSummary');
+    const activeCount = groups.filter(g => g.active).length;
+
+    document.getElementById('groupsActiveCount').textContent = activeCount;
+    document.getElementById('groupsTotalCount').textContent  = groups.length;
+    summary.style.display = groups.length ? 'block' : 'none';
+
+    if (!groups.length) {
+      container.innerHTML = '<div class="loading-groups">📭 Pa gen gwoup yo jwenn</div>';
+      return;
+    }
+
+    container.innerHTML = groups.map(g => `
+      <div class="group-item ${g.active ? '' : 'inactive'}" id="gi-${CSS.escape(g.jid)}">
+        <div class="group-info">
+          <div class="group-name">${escapeHtml(g.name)}</div>
+          <div class="group-meta">👥 ${g.participants} manm  ·  ${g.jid.split('@')[0]}</div>
+        </div>
+        <div class="group-controls">
+          <div class="toggle-wrap">
+            <span class="toggle-label">Bot</span>
+            <label class="toggle">
+              <input type="checkbox" ${g.active ? 'checked' : ''}
+                onchange="toggleGroup('${g.jid}','botActive',this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="toggle-wrap">
+            <span class="toggle-label">Welcome</span>
+            <label class="toggle">
+              <input type="checkbox" ${g.welcome ? 'checked' : ''}
+                onchange="toggleGroup('${g.jid}','welcome',this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="toggle-wrap">
+            <span class="toggle-label">AntiLink</span>
+            <label class="toggle">
+              <input type="checkbox" ${g.antiLink ? 'checked' : ''}
+                onchange="toggleGroup('${g.jid}','antiLink',this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>`).join('');
+  }
+
+  function filterGroups() {
+    const q = document.getElementById('groupSearch').value.toLowerCase();
+    if (!q) { renderGroups(allGroups); return; }
+    renderGroups(allGroups.filter(g => g.name.toLowerCase().includes(q)));
+  }
+
+  async function toggleGroup(jid, field, value) {
+    // Update local state immediately
+    const g = allGroups.find(x => x.jid === jid);
+    if (g) { g[field] = value; if (field === 'botActive') g.active = value; }
+    // Dim/undim row for botActive
+    if (field === 'botActive') {
+      const row = document.getElementById('gi-' + CSS.escape(jid));
+      if (row) row.classList.toggle('inactive', !value);
+    }
+    // Update count
+    const activeCount = allGroups.filter(x => x.active).length;
+    document.getElementById('groupsActiveCount').textContent = activeCount;
+    // Save to server
+    try {
+      await fetch('/api/groups/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jid, field, value }),
+      });
+    } catch(e) { console.error('Toggle failed', e); }
+  }
+
+  async function toggleAll(active) {
+    if (!allGroups.length) return;
+    const label = active ? 'aktive' : 'deaktive';
+    if (!confirm(`${label.charAt(0).toUpperCase() + label.slice(1)} bot la nan tout ${allGroups.length} gwoup yo?`)) return;
+    for (const g of allGroups) {
+      g.botActive = active; g.active = active;
+    }
+    renderGroups(allGroups);
+    for (const g of allGroups) {
+      try {
+        await fetch('/api/groups/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jid: g.jid, field: 'botActive', value: active }),
+        });
+      } catch(e) {}
+    }
+  }
+
+  // Auto-load groups once bot connects
+  socket.on('state', (data) => {
+    applyState(data);
+    if (data.connection === 'open' && !allGroups.length) {
+      setTimeout(loadGroups, 1500);
+    }
+  });
 </script>
 </body>
 </html>

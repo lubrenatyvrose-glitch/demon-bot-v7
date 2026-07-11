@@ -89,6 +89,13 @@ async function commandHandler(sock, m, context) {
     const args = parts.slice(1);
     const argsText = args.join(" ");
 
+    // Check if bot is active in this group
+    if (groupChat) {
+      const { getGroupSettings } = require("../lib/database");
+      const gs = getGroupSettings(chatId);
+      if (gs.botActive === false) return; // Bot disabled in this group
+    }
+
     // Find command
     const command = commands.get(cmdName);
     if (!command) return; // Unknown command — silently ignore
