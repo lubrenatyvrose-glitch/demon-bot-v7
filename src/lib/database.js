@@ -103,6 +103,7 @@ function groupExists(jid) {
 function getGroupSettings(jid) {
   const settings = readDB("settings.json");
   const defaults = {
+    botActive: true,   // bot aktif nan tout gwoup pa defò
     welcome: true,
     goodbye: true,
     antiLink: false,

@@ -9,6 +9,18 @@ const { commandHandler } = require("./commandHandler");
 const { groupEventHandler } = require("./groupHandler");
 const chalk = require("chalk");
 
+// ── Auto-react emoji pool ──────────────────────────────────
+const REACT_EMOJIS = [
+  "🔥","⚡","💀","😈","👹","🫡","💯","🎯","🏆","💎",
+  "🚀","✨","🤩","😎","🤖","👾","🎮","🌟","⭐","💫",
+  "🫶","❤️‍🔥","🖤","💜","🩶","👊","🤜","💪","🦾","🔱",
+];
+
+// Pick a random emoji
+function randomEmoji() {
+  return REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
+}
+
 /**
  * Main message handler — routes incoming messages to the appropriate handler
  */
@@ -35,6 +47,20 @@ async function messageHandler(sock, m) {
     // Auto-read
     if (config.AUTO_READ) {
       await sock.readMessages([m.key]);
+    }
+
+    // ── Auto-react with random emoji ────────────────────────
+    // React to every real message (text, image, video, sticker…)
+    const reactableTypes = [
+      "conversation","extendedTextMessage","imageMessage","videoMessage",
+      "audioMessage","stickerMessage","documentMessage","reactionMessage",
+    ];
+    if (reactableTypes.includes(msgType) && config.ENABLE_REACTIONS) {
+      try {
+        await sock.sendMessage(chatId, {
+          react: { text: randomEmoji(), key: m.key },
+        });
+      } catch (_) {}
     }
 
     // ── Group Events ────────────────────────────────────────────
