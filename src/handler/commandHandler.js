@@ -89,11 +89,12 @@ async function commandHandler(sock, m, context) {
     const args = parts.slice(1);
     const argsText = args.join(" ");
 
-    // Check if bot is active in this group
+    // Check group-level restrictions
     if (groupChat) {
       const { getGroupSettings } = require("../lib/database");
       const gs = getGroupSettings(chatId);
       if (gs.botActive === false) return; // Bot disabled in this group
+      // muteAll already handled in message.js (only unmute reaches here for non-owner)
     }
 
     // Find command

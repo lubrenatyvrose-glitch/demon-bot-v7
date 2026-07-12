@@ -70,6 +70,49 @@ async function messageHandler(sock, m) {
         await groupEventHandler(sock, m);
         return;
       }
+
+      // ── AntiLink enforcement ─────────────────────────────────
+      const { getGroupSettings } = require("../lib/database");
+      const gs = getGroupSettings(chatId);
+
+      // muteAll — bot ignores all commands while muted in this group
+      if (gs.muteAll) {
+        // still allow owner to unmute
+        const isOwner = config.OWNER_NUMBER.some(
+          (num) => sender.includes(num) || sender.includes(num.replace(/^0+/, ""))
+        );
+        const isMuteCmd = text && text.startsWith(config.PREFIX) &&
+          text.slice(config.PREFIX.length).trim().split(/ +/)[0].toLowerCase() === "unmute";
+        if (!isOwner && !isMuteCmd) return;
+      }
+
+      // antiLink — detect and delete any link sent by non-admins
+      if (gs.antiLink && text) {
+        const LINK_REGEX = /https?:\/\/[^\s]+|wa\.me\/[^\s]+|chat\.whatsapp\.com\/[^\s]+/i;
+        if (LINK_REGEX.test(text)) {
+          // Check if sender is admin — admins are exempt
+          try {
+            const groupMeta = await sock.groupMetadata(chatId);
+            const participant = groupMeta.participants.find(p => p.id === sender);
+            const isAdmin = participant?.admin === "admin" || participant?.admin === "superadmin";
+            const isOwner = config.OWNER_NUMBER.some(
+              (num) => sender.includes(num) || sender.includes(num.replace(/^0+/, ""))
+            );
+            if (!isAdmin && !isOwner) {
+              // Delete the message
+              await sock.sendMessage(chatId, { delete: m.key });
+              // Warn the user
+              await sock.sendMessage(chatId, {
+                text: `╭━━〔 🔗 ANTI-LINK 〕━━⬣\n` +
+                      `┃ ⚠️ @${sender.split("@")[0]}, lyen entèdi nan gwoup sa!\n` +
+                      `╰━━━━━━━━━━━━━━━━━━⬣`,
+                mentions: [sender],
+              });
+              return;
+            }
+          } catch (_) {}
+        }
+      }
     }
 
     // ── Command Processing ──────────────────────────────────────
