@@ -122,6 +122,23 @@ app.post("/api/pairing", async (req, res) => {
   global.__WANT_PAIRING = true;
 });
 
+// API: List all commands (for dashboard)
+app.get("/api/commands", (req, res) => {
+  const { getAllCommands } = require("./src/handler/commandHandler");
+  const cmds = getAllCommands().map(c => ({
+    name: c.name,
+    aliases: c.aliases || [],
+    category: c.category || "other",
+    description: c.description || "",
+    usage: c.usage || "",
+    groupOnly: !!c.groupOnly,
+    adminOnly: !!c.adminOnly,
+    ownerOnly: !!c.ownerOnly,
+    premiumOnly: !!c.premiumOnly,
+  }));
+  res.json({ ok: true, total: cmds.length, commands: cmds });
+});
+
 // API: Get stats
 app.get("/api/stats", (req, res) => {
   res.json({

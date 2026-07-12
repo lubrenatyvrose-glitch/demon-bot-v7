@@ -190,6 +190,9 @@ async function commandHandler(sock, m, context) {
 
     await command.execute(execContext);
 
+    // Increment stats counter
+    if (global.__BOT_STATE) global.__BOT_STATE.stats.commandsExecuted++;
+
     // Success reaction
     if (config.ENABLE_REACTIONS) {
       await sendReaction(sock, chatId, config.SUCCESS_REACTION, m.key);

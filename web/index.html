@@ -1,621 +1,911 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🔥 DEMON BOT V7 — Dashboard</title>
+  <title>🔥 DEMON BOT V7</title>
   <script src="/socket.io/socket.io.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg:        #080810;
+      --surface:   #0f0f1a;
+      --surface2:  #16162a;
+      --border:    #1e1e35;
+      --border2:   #2a2a45;
+      --purple:    #7c3aed;
+      --purple2:   #a855f7;
+      --red:       #ef4444;
+      --green:     #10b981;
+      --yellow:    #f59e0b;
+      --text:      #e8e6f0;
+      --text2:     #9089b0;
+      --text3:     #4f4a6a;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html { scroll-behavior: smooth; }
     body {
-      font-family: 'Courier New', 'Fira Code', monospace;
-      background: #0a0a0f;
-      color: #e0d6ff;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
-      overflow-x: hidden;
     }
-    body::before {
-      content: '';
+
+    /* ── GLOW BG ── */
+    .glow-bg {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: radial-gradient(ellipse at 50% 0%, #1a0a2e 0%, #0a0a0f 70%);
-      z-index: -1;
+      pointer-events: none; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, rgba(124,58,237,.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 90% 10%, rgba(239,68,68,.10) 0%, transparent 60%),
+        var(--bg);
     }
-    .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
 
-    /* HEADER */
-    .header {
-      text-align: center; padding: 30px 20px 20px;
-      border-bottom: 2px solid #6b21a8;
-      margin-bottom: 25px;
+    /* ── LAYOUT ── */
+    .layout { position: relative; z-index: 1; display: flex; min-height: 100vh; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      position: sticky; top: 0; height: 100vh;
+      overflow-y: auto;
     }
-    .header .logo { font-size: 2.8rem; margin-bottom: 8px; }
-    .header h1 {
-      font-size: 2rem; font-weight: 900; letter-spacing: 3px;
-      background: linear-gradient(135deg, #ef4444, #dc2626, #a855f7);
+    .sidebar-logo {
+      padding: 22px 20px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-logo .fire { font-size: 2rem; }
+    .sidebar-logo h1 {
+      font-size: 1.1rem; font-weight: 900; letter-spacing: 1px;
+      background: linear-gradient(135deg, #ef4444, #a855f7);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-top: 2px;
     }
-    .header .subtitle { color: #8b5cf6; font-size: 0.85rem; margin-top: 5px; letter-spacing: 2px; }
+    .sidebar-logo .ver { font-size: 0.68rem; color: var(--text3); letter-spacing: 2px; }
 
-    /* STATUS */
-    .status-badge {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 8px 20px; border-radius: 30px; font-size: 0.85rem;
-      font-weight: 700; letter-spacing: 1px; margin: 15px 0;
+    .nav { padding: 12px 8px; flex: 1; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 10px; cursor: pointer;
+      font-size: 0.85rem; font-weight: 500; color: var(--text2);
+      transition: all 0.18s; margin-bottom: 2px; border: none;
+      background: none; width: 100%; text-align: left;
     }
-    .status-badge.online  { background: #065f46; color: #6ee7b7; border: 1px solid #10b981; }
-    .status-badge.connecting { background: #78350f; color: #fcd34d; border: 1px solid #f59e0b; animation: pulse 1.5s infinite; }
-    .status-badge.offline { background: #450a0a; color: #fca5a5; border: 1px solid #ef4444; }
-    .status-badge.qr      { background: #1e1b4b; color: #c4b5fd; border: 1px solid #8b5cf6; animation: pulse 1.5s infinite; }
-    .status-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .status-dot.online  { background: #10b981; box-shadow: 0 0 10px #10b981; }
-    .status-dot.connecting, .status-dot.qr { background: #f59e0b; box-shadow: 0 0 10px #f59e0b; }
-    .status-dot.offline { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
-    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+    .nav-item:hover  { background: var(--surface2); color: var(--text); }
+    .nav-item.active { background: rgba(124,58,237,.2); color: var(--purple2); border: 1px solid rgba(124,58,237,.3); }
+    .nav-item .nav-icon { font-size: 1.1rem; flex-shrink: 0; }
 
-    /* GRID */
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
-    .card {
-      background: rgba(15,10,30,0.9); border: 1px solid #2d1b4e;
-      border-radius: 16px; padding: 20px; backdrop-filter: blur(10px);
+    .sidebar-status {
+      padding: 14px 16px;
+      border-top: 1px solid var(--border);
     }
-    .card.full { grid-column: 1 / -1; }
-    .card h2 {
-      font-size: 0.95rem; letter-spacing: 2px; color: #a855f7;
-      margin-bottom: 15px; text-transform: uppercase;
+    .status-pill {
       display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;
+      letter-spacing: .5px;
     }
-    .card h2::before { content: '▸'; color: #ef4444; }
+    .status-pill.online     { background: rgba(16,185,129,.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,.3); }
+    .status-pill.connecting { background: rgba(245,158,11,.12); color: #fcd34d; border: 1px solid rgba(245,158,11,.3); animation: blink 1.4s infinite; }
+    .status-pill.qr         { background: rgba(124,58,237,.15); color: #c4b5fd; border: 1px solid rgba(124,58,237,.3); animation: blink 1.4s infinite; }
+    .status-pill.offline    { background: rgba(239,68,68,.12); color: #fca5a5; border: 1px solid rgba(239,68,68,.3); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot.online     { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .status-dot.connecting,.status-dot.qr { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+    .status-dot.offline    { background: var(--red); box-shadow: 0 0 8px var(--red); }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.55} }
 
-    /* QR */
-    .qr-container {
-      text-align: center; padding: 16px;
-      background: #fff; border-radius: 12px; display: inline-block;
+    /* ── MAIN ── */
+    .main { flex: 1; overflow-y: auto; }
+    .page { display: none; padding: 28px; max-width: 1040px; }
+    .page.active { display: block; }
+    .page-title {
+      font-size: 1.3rem; font-weight: 800; margin-bottom: 22px;
+      display: flex; align-items: center; gap: 10px;
     }
-    .qr-container img { width: 220px; height: 220px; }
-    .qr-label { color: #000; font-weight: 700; margin-top: 8px; font-size: 0.75rem; }
+    .page-title span { color: var(--text2); font-size: 0.85rem; font-weight: 400; }
 
-    /* PAIRING CODE */
-    .pairing-code {
-      font-size: 2.5rem; font-weight: 900; letter-spacing: 8px;
-      color: #fbbf24; text-align: center; padding: 20px;
-      background: rgba(251,191,36,0.1); border: 2px dashed #fbbf24;
+    /* ── CARDS ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 20px;
+    }
+    .card-title {
+      font-size: 0.8rem; font-weight: 700; letter-spacing: 1.5px;
+      color: var(--text2); text-transform: uppercase; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .card-title::before { content:''; width:3px; height:14px; background:var(--purple); border-radius:2px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .col-span2 { grid-column: span 2; }
+
+    /* ── STAT CARDS ── */
+    .stat-card {
+      background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 16px; text-align: center;
+    }
+    .stat-icon { font-size: 1.6rem; margin-bottom: 6px; }
+    .stat-val  { font-size: 2rem; font-weight: 900; color: var(--purple2); font-family: 'JetBrains Mono', monospace; }
+    .stat-lbl  { font-size: 0.68rem; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+    /* ── INFO TABLE ── */
+    .info-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 0; border-bottom: 1px solid var(--border);
+    }
+    .info-row:last-child { border: none; }
+    .info-lbl { font-size: 0.78rem; color: var(--text2); }
+    .info-val { font-size: 0.82rem; font-weight: 600; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 10px 18px; border-radius: 9px; border: none;
+      font-weight: 700; cursor: pointer; font-family: 'Inter', sans-serif;
+      font-size: 0.83rem; letter-spacing: .3px; transition: all 0.18s;
+    }
+    .btn-primary { background: linear-gradient(135deg,var(--purple),var(--purple2)); color:#fff; }
+    .btn-primary:hover { filter: brightness(1.12); transform: translateY(-1px); }
+    .btn-danger  { background: linear-gradient(135deg,#b91c1c,var(--red)); color:#fff; }
+    .btn-danger:hover  { filter: brightness(1.12); transform: translateY(-1px); }
+    .btn-ghost   { background: var(--surface2); color: var(--text2); border: 1px solid var(--border2); }
+    .btn-ghost:hover   { background: var(--border); color: var(--text); }
+    .btn-green   { background: linear-gradient(135deg,#065f46,var(--green)); color:#fff; }
+    .btn-block   { width: 100%; justify-content: center; margin-top: 10px; }
+
+    /* ── QR ── */
+    .qr-wrap {
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
+      padding: 20px;
+    }
+    .qr-frame {
+      background: #fff; padding: 12px; border-radius: 12px;
+      box-shadow: 0 0 30px rgba(168,85,247,.3);
+    }
+    .qr-frame img { display: block; width: 220px; height: 220px; }
+    .qr-hint { font-size: 0.78rem; color: var(--text2); text-align: center; }
+
+    .empty-box {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 35px 20px; gap: 10px;
+    }
+    .empty-box .ei { font-size: 3rem; }
+    .empty-box p   { font-size: 0.82rem; color: var(--text3); text-align: center; }
+
+    .connected-box {
+      background: rgba(16,185,129,.08); border: 1px solid rgba(16,185,129,.25);
+      border-radius: 12px; padding: 18px; text-align: center;
+    }
+    .connected-box .cn { font-size: 1.05rem; font-weight: 700; color: #6ee7b7; }
+    .connected-box .cj { font-size: 0.75rem; color: var(--green); margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
+
+    /* ── PAIRING CODE ── */
+    .pair-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2.4rem; font-weight: 900; letter-spacing: 10px;
+      color: var(--yellow); text-align: center; padding: 20px;
+      background: rgba(245,158,11,.08); border: 2px dashed rgba(245,158,11,.4);
       border-radius: 12px; margin: 10px 0;
     }
-    .pairing-section { display: none; margin-top: 15px; }
-    .pairing-section input {
-      background: #1a1025; border: 1px solid #6b21a8; color: #e0d6ff;
-      padding: 12px 16px; border-radius: 8px; width: 100%; font-size: 1rem;
-      font-family: inherit; margin-bottom: 10px;
+    .pair-hint { font-size: 0.75rem; color: var(--yellow); text-align: center; }
+    .pair-section { display: none; margin-top: 14px; }
+    .pair-section input {
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text); padding: 10px 14px; border-radius: 8px;
+      width: 100%; font-size: 0.9rem; font-family: 'Inter', sans-serif;
+      margin-bottom: 10px;
     }
-    .pairing-section input:focus { outline: none; border-color: #a855f7; }
+    .pair-section input:focus { outline: none; border-color: var(--purple); }
 
-    /* BUTTONS */
-    .btn {
-      padding: 10px 20px; border-radius: 8px; border: none;
-      font-weight: 700; cursor: pointer; font-family: inherit;
-      font-size: 0.9rem; letter-spacing: 1px; transition: all 0.2s; width: 100%;
+    /* ── LOGS ── */
+    .log-box {
+      height: 300px; overflow-y: auto; font-size: 0.72rem;
+      font-family: 'JetBrains Mono', monospace;
+      background: #05050e; border-radius: 10px; padding: 12px;
+      border: 1px solid var(--border); scrollbar-width: thin;
     }
-    .btn-primary { background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff; }
-    .btn-primary:hover { background: linear-gradient(135deg, #6d28d9, #9333ea); transform: translateY(-1px); }
-    .btn-danger  { background: linear-gradient(135deg, #dc2626, #ef4444); color: #fff; }
-    .btn-danger:hover  { background: linear-gradient(135deg, #b91c1c, #dc2626); }
-    .btn-secondary { background: rgba(107,33,168,0.3); color: #c4b5fd; border: 1px solid #6b21a8; }
-    .btn-secondary:hover { background: rgba(107,33,168,0.5); }
-    .mt10 { margin-top: 10px; }
+    .log-line { padding: 2px 0; line-height: 1.5; }
+    .lt { color: var(--text3); margin-right: 8px; }
+    .li { color: #7dd3fc; }
+    .le { color: #fca5a5; }
+    .lw { color: #fcd34d; }
 
-    /* STATS */
-    .stat-row { display: flex; gap: 12px; flex-wrap: wrap; }
-    .stat-card {
-      flex: 1; min-width: 120px;
-      background: rgba(107,33,168,0.15); border: 1px solid #3b1f5e;
-      border-radius: 12px; padding: 16px; text-align: center;
+    /* ── COMMANDS PAGE ── */
+    .cmd-search {
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text); padding: 10px 14px 10px 36px; border-radius: 9px;
+      width: 100%; font-family: 'Inter', sans-serif; font-size: 0.88rem;
+      margin-bottom: 18px;
     }
-    .stat-value { font-size: 1.8rem; font-weight: 900; color: #a855f7; }
-    .stat-label { font-size: 0.7rem; color: #8b5cf6; letter-spacing: 1px; margin-top: 4px; }
+    .cmd-search:focus { outline: none; border-color: var(--purple); }
+    .cmd-search-wrap { position: relative; }
+    .cmd-search-wrap::before { content: '🔍'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 0.85rem; }
 
-    /* BOT INFO */
-    .info-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #1e1030; }
-    .info-row:last-child { border: none; }
-    .info-label { color: #8b5cf6; font-size: 0.8rem; }
-    .info-value { color: #e0d6ff; font-weight: 600; font-size: 0.85rem; }
+    .cat-block { margin-bottom: 22px; }
+    .cat-label {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 2px;
+      color: var(--purple2); text-transform: uppercase; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .cat-label::after { content:''; flex: 1; height: 1px; background: var(--border); }
 
-    /* LOGS */
-    .log-container {
-      height: 280px; overflow-y: auto; font-size: 0.75rem;
-      background: #060410; border-radius: 8px; padding: 10px;
-      border: 1px solid #1e1030; scrollbar-width: thin;
+    .cmd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+    .cmd-item {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 9px; padding: 10px 12px;
+      transition: border-color .15s;
     }
-    .log-entry { padding: 3px 0; border-bottom: 1px solid #0f0820; line-height: 1.4; }
-    .log-time  { color: #6b21a8; margin-right: 8px; }
-    .log-info  { color: #a5f3fc; }
-    .log-error { color: #fca5a5; }
-    .log-warn  { color: #fcd34d; }
+    .cmd-item:hover { border-color: var(--purple); }
+    .cmd-name { font-size: 0.82rem; font-weight: 700; color: var(--purple2); font-family: 'JetBrains Mono', monospace; }
+    .cmd-desc { font-size: 0.72rem; color: var(--text2); margin-top: 3px; line-height: 1.4; }
+    .cmd-tags { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+    .cmd-tag {
+      font-size: 0.62rem; padding: 1px 6px; border-radius: 4px; font-weight: 600;
+    }
+    .tag-group { background: rgba(16,185,129,.15); color: #6ee7b7; }
+    .tag-owner { background: rgba(239,68,68,.15); color: #fca5a5; }
+    .tag-admin { background: rgba(245,158,11,.15); color: #fcd34d; }
+    .tag-premium { background: rgba(168,85,247,.2); color: var(--purple2); }
 
-    /* EMPTY */
-    .empty-state { text-align: center; padding: 30px 20px; color: #4b2d7a; }
-    .empty-state .icon { font-size: 3rem; margin-bottom: 10px; }
+    /* ── GROUPS PAGE ── */
+    .groups-bar {
+      display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .groups-bar input {
+      flex: 1; min-width: 160px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text); padding: 9px 14px; border-radius: 8px;
+      font-family: 'Inter', sans-serif; font-size: 0.83rem;
+    }
+    .groups-bar input:focus { outline: none; border-color: var(--purple); }
+    .groups-bar .btn { padding: 9px 14px; font-size: 0.78rem; }
 
-    /* CONNECTED INFO */
-    .connected-info {
-      text-align: center; padding: 15px;
-      background: rgba(6,95,70,0.2); border: 1px solid #10b981;
-      border-radius: 12px; margin-top: 10px;
-    }
-    .connected-info .name { font-size: 1.1rem; font-weight: 700; color: #6ee7b7; }
-    .connected-info .jid  { font-size: 0.8rem; color: #10b981; margin-top: 4px; }
+    .groups-count { font-size: 0.78rem; color: var(--text3); margin-bottom: 12px; }
+    .groups-count strong { color: var(--purple2); }
 
-    /* GROUPS PANEL */
-    .groups-toolbar {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 14px; flex-wrap: wrap; gap: 8px;
+    .group-list { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; scrollbar-width: thin; }
+    .group-row {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 11px; padding: 11px 14px;
+      transition: border-color .15s;
     }
-    .groups-toolbar input {
-      background: #1a1025; border: 1px solid #3b1f5e; color: #e0d6ff;
-      padding: 8px 12px; border-radius: 8px; font-family: inherit;
-      font-size: 0.82rem; flex: 1; min-width: 140px;
+    .group-row:hover { border-color: var(--border2); }
+    .group-row.inactive { opacity: .4; }
+    .group-avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: linear-gradient(135deg,var(--purple),#c026d3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; font-weight: 700; flex-shrink: 0;
     }
-    .groups-toolbar input:focus { outline: none; border-color: #a855f7; }
-    .btn-sm {
-      padding: 7px 14px; border-radius: 7px; border: none;
-      font-weight: 700; cursor: pointer; font-family: inherit;
-      font-size: 0.8rem; letter-spacing: 1px; transition: all 0.2s;
-      white-space: nowrap;
-    }
-    .btn-sm.primary { background: linear-gradient(135deg,#7c3aed,#a855f7); color:#fff; }
-    .btn-sm.primary:hover { background: linear-gradient(135deg,#6d28d9,#9333ea); }
-    .btn-sm.green  { background: linear-gradient(135deg,#065f46,#10b981); color:#fff; }
-    .btn-sm.red    { background: linear-gradient(135deg,#7f1d1d,#ef4444); color:#fff; }
-
-    .group-list { max-height: 360px; overflow-y: auto; scrollbar-width: thin; }
-    .group-item {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 11px 12px; margin-bottom: 8px;
-      background: rgba(107,33,168,0.1); border: 1px solid #2d1b4e;
-      border-radius: 10px; gap: 10px; flex-wrap: wrap;
-      transition: border-color 0.2s;
-    }
-    .group-item.inactive { opacity: 0.45; border-color: #1a0f2e; }
-    .group-item:hover { border-color: #6b21a8; }
     .group-info { flex: 1; min-width: 0; }
-    .group-name {
-      font-weight: 700; font-size: 0.88rem; color: #e0d6ff;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .group-meta { font-size: 0.72rem; color: #8b5cf6; margin-top: 3px; }
-    .group-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .group-name { font-size: 0.85rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .group-meta { font-size: 0.7rem; color: var(--text3); margin-top: 2px; }
+    .group-toggles { display: flex; gap: 10px; flex-shrink: 0; align-items: center; flex-wrap: wrap; }
 
-    /* Toggle switch */
-    .toggle-wrap { display: flex; align-items: center; gap: 6px; }
-    .toggle-label { font-size: 0.72rem; color: #8b5cf6; white-space: nowrap; }
-    .toggle {
-      position: relative; width: 42px; height: 23px;
-      cursor: pointer; flex-shrink: 0;
+    .tgl-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .tgl-lbl { font-size: 0.62rem; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; }
+    .tgl {
+      position: relative; width: 38px; height: 21px; cursor: pointer;
     }
-    .toggle input { opacity: 0; width: 0; height: 0; }
-    .toggle-slider {
+    .tgl input { opacity: 0; width: 0; height: 0; }
+    .tgl-track {
       position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-      background: #3b1f5e; border-radius: 23px; transition: 0.3s;
+      background: var(--border2); border-radius: 21px; transition: .25s;
     }
-    .toggle-slider:before {
-      content: ""; position: absolute;
-      width: 17px; height: 17px; left: 3px; bottom: 3px;
-      background: #8b5cf6; border-radius: 50%; transition: 0.3s;
+    .tgl-track::before {
+      content: ''; position: absolute;
+      width: 15px; height: 15px; left: 3px; bottom: 3px;
+      background: var(--text3); border-radius: 50%; transition: .25s;
     }
-    .toggle input:checked + .toggle-slider { background: #065f46; }
-    .toggle input:checked + .toggle-slider:before {
-      transform: translateX(19px); background: #10b981;
+    .tgl input:checked + .tgl-track { background: rgba(16,185,129,.5); }
+    .tgl input:checked + .tgl-track::before { transform: translateX(17px); background: var(--green); }
+
+    /* ── MOBILE ── */
+    .mobile-nav {
+      display: none; position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--surface); border-top: 1px solid var(--border);
+      z-index: 100; padding: 6px 0 8px;
+    }
+    .mobile-nav-inner {
+      display: flex; justify-content: space-around;
+    }
+    .mob-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 6px 10px; background: none; border: none; cursor: pointer;
+      color: var(--text3); font-size: 0.6rem; font-weight: 600;
+      font-family: 'Inter', sans-serif; transition: color .15s;
+    }
+    .mob-btn .mi { font-size: 1.3rem; }
+    .mob-btn.active { color: var(--purple2); }
+
+    @media (max-width: 700px) {
+      .sidebar { display: none; }
+      .mobile-nav { display: block; }
+      .main { padding-bottom: 70px; }
+      .page { padding: 16px; }
+      .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
+      .col-span2 { grid-column: span 1; }
+      .stat-val { font-size: 1.6rem; }
+      .group-toggles { gap: 6px; }
     }
 
-    .groups-summary {
-      font-size: 0.78rem; color: #6b7280; text-align: center; margin-bottom: 10px;
-    }
-    .groups-summary span { color: #a855f7; font-weight: 700; }
-    .loading-groups {
-      text-align: center; padding: 30px; color: #4b2d7a; font-size: 0.85rem;
-    }
+    /* SCROLLBAR */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
   </style>
 </head>
 <body>
-<div class="container">
+<div class="glow-bg"></div>
+<div class="layout">
 
-  <!-- HEADER -->
-  <div class="header">
-    <div class="logo">🔥</div>
-    <h1>DEMON BOT V7</h1>
-    <div class="subtitle">PREMIUM WHATSAPP BOT — WEB DASHBOARD</div>
-    <div id="statusBadge" class="status-badge connecting">
-      <span class="status-dot connecting"></span>
-      <span id="statusText">CONNECTING...</span>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="fire">🔥</div>
+      <h1>DEMON BOT V7</h1>
+      <div class="ver">PREMIUM WHATSAPP BOT</div>
     </div>
-  </div>
 
-  <div class="grid">
-
-    <!-- QR / PAIRING CARD -->
-    <div class="card">
-      <h2>WhatsApp Connection</h2>
-      <div id="qrSection" class="empty-state">
-        <div class="icon">⏳</div>
-        <p>Waiting for QR code...</p>
-      </div>
-      <div id="pairingCodeDisplay"></div>
-      <div id="connectedSection" style="display:none;" class="connected-info">
-        <div class="icon">✅</div>
-        <div class="name" id="connectedName">Connected</div>
-        <div class="jid"  id="connectedJid"></div>
-      </div>
-
-      <!-- PAIRING TOGGLE -->
-      <button class="btn btn-secondary mt10" id="togglePairingBtn" onclick="togglePairing()">
-        📱 USE PAIRING CODE INSTEAD
+    <nav class="nav">
+      <button class="nav-item active" onclick="navTo('dashboard',this)">
+        <span class="nav-icon">📊</span> Dashboard
       </button>
-      <div class="pairing-section" id="pairingSection">
-        <input type="text" id="phoneInput" placeholder="Phone with country code (e.g. 50955394345)" />
-        <button class="btn btn-primary" onclick="requestPairing()">🔑 GET PAIRING CODE</button>
+      <button class="nav-item" onclick="navTo('connection',this)">
+        <span class="nav-icon">📱</span> Koneksyon
+      </button>
+      <button class="nav-item" onclick="navTo('groups',this)">
+        <span class="nav-icon">👥</span> Gwoup yo
+      </button>
+      <button class="nav-item" onclick="navTo('commands',this)">
+        <span class="nav-icon">⚡</span> Kòmand yo
+      </button>
+      <button class="nav-item" onclick="navTo('logs',this)">
+        <span class="nav-icon">📋</span> Live Logs
+      </button>
+    </nav>
+
+    <div class="sidebar-status">
+      <div id="sideStatusPill" class="status-pill connecting">
+        <span id="sideStatusDot" class="status-dot connecting"></span>
+        <span id="sideStatusTxt">CONNECTING...</span>
       </div>
     </div>
+  </aside>
 
-    <!-- STATS CARD -->
-    <div class="card">
-      <h2>Live Stats</h2>
-      <div class="stat-row">
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ── DASHBOARD PAGE ── -->
+    <div id="page-dashboard" class="page active">
+      <div class="page-title">📊 Dashboard <span>— Vue Jeneral</span></div>
+
+      <div class="grid4" style="margin-bottom:16px;">
         <div class="stat-card">
-          <div class="stat-value" id="statMsgs">0</div>
-          <div class="stat-label">MESSAGES</div>
+          <div class="stat-icon">💬</div>
+          <div class="stat-val" id="statMsgs">0</div>
+          <div class="stat-lbl">Mesaj</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" id="statCmds">0</div>
-          <div class="stat-label">COMMANDS</div>
+          <div class="stat-icon">⚡</div>
+          <div class="stat-val" id="statCmds">0</div>
+          <div class="stat-lbl">Kòmand</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" id="statErrors">0</div>
-          <div class="stat-label">ERRORS</div>
+          <div class="stat-icon">❌</div>
+          <div class="stat-val" id="statErrors">0</div>
+          <div class="stat-lbl">Erè</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⏱️</div>
+          <div class="stat-val" id="statUptime" style="font-size:1.1rem;">—</div>
+          <div class="stat-lbl">Uptime</div>
         </div>
       </div>
 
-      <div style="margin-top:16px;">
-        <div class="info-row">
-          <span class="info-label">BOT NAME</span>
-          <span class="info-value" id="infoBotName">—</span>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">Enfòmasyon Bot</div>
+          <div class="info-row"><span class="info-lbl">Non Bot</span>       <span class="info-val" id="iBotName">—</span></div>
+          <div class="info-row"><span class="info-lbl">Pwopriétè</span>     <span class="info-val" id="iOwner">—</span></div>
+          <div class="info-row"><span class="info-lbl">Prefix</span>         <span class="info-val" id="iPrefix">—</span></div>
+          <div class="info-row"><span class="info-lbl">Mode</span>            <span class="info-val" id="iMode">—</span></div>
+          <div class="info-row"><span class="info-lbl">Kòmand Chaje</span>   <span class="info-val" id="iCmdCount">—</span></div>
+          <div class="info-row"><span class="info-lbl">Nimewo Konekte</span> <span class="info-val" id="iConnNum">—</span></div>
         </div>
-        <div class="info-row">
-          <span class="info-label">OWNER</span>
-          <span class="info-value" id="infoOwner">—</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">PREFIX</span>
-          <span class="info-value" id="infoPrefix">—</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">MODE</span>
-          <span class="info-value" id="infoMode">—</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">UPTIME</span>
-          <span class="info-value" id="infoUptime">—</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">COMMANDS LOADED</span>
-          <span class="info-value" id="infoCommands">—</span>
-        </div>
-      </div>
 
-      <button class="btn btn-danger mt10" onclick="restartBot()">🔄 RESTART BOT</button>
-    </div>
-
-    <!-- GROUPS CARD -->
-    <div class="card full" id="groupsCard">
-      <h2>👥 Gwoup yo — Aktive / Deaktive Bot</h2>
-
-      <div class="groups-toolbar">
-        <input type="text" id="groupSearch" placeholder="🔍 Chèche gwoup..." oninput="filterGroups()" />
-        <button class="btn-sm primary" onclick="loadGroups()">🔄 Rafraîchi</button>
-        <button class="btn-sm green"   onclick="toggleAll(true)">✅ Aktive Tout</button>
-        <button class="btn-sm red"     onclick="toggleAll(false)">❌ Deaktive Tout</button>
-      </div>
-
-      <div class="groups-summary" id="groupsSummary" style="display:none;">
-        <span id="groupsActiveCount">0</span> aktif sou <span id="groupsTotalCount">0</span> gwoup
-      </div>
-
-      <div id="groupsContainer" class="group-list">
-        <div class="loading-groups">
-          <div style="font-size:2rem;margin-bottom:8px;">👥</div>
-          Konekte WhatsApp an premye pou wè gwoup yo
+        <div class="card">
+          <div class="card-title">Estati Koneksyon</div>
+          <div id="dashConnBox" class="empty-box">
+            <div class="ei">📱</div>
+            <p>Ale nan "Koneksyon" pou skan QR code ou</p>
+          </div>
+          <div id="dashConnected" style="display:none;" class="connected-box">
+            <div class="ei" style="font-size:2rem;">✅</div>
+            <div class="cn" id="dashConnName">Konekte</div>
+            <div class="cj" id="dashConnJid"></div>
+          </div>
+          <button class="btn btn-danger btn-block" onclick="restartBot()">🔄 Restarté Bot</button>
         </div>
       </div>
     </div>
 
-    <!-- LOGS CARD -->
-    <div class="card full">
-      <h2>Live Console Logs</h2>
-      <div class="log-container" id="logContainer">
-        <div class="log-entry">
-          <span class="log-time">--:--:--</span>
-          <span class="log-info">Waiting for bot logs...</span>
+    <!-- ── CONNECTION PAGE ── -->
+    <div id="page-connection" class="page">
+      <div class="page-title">📱 Koneksyon <span>— WhatsApp</span></div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">Skan QR Code</div>
+          <div id="qrSection" class="empty-box">
+            <div class="ei">⏳</div>
+            <p>Ap tann QR code...</p>
+          </div>
+          <div id="connectedSection" style="display:none;" class="connected-box">
+            <div style="font-size:2rem;">✅</div>
+            <div class="cn" id="connName">Konekte</div>
+            <div class="cj" id="connJid"></div>
+          </div>
+          <div id="pairCodeDisplay"></div>
+
+          <button class="btn btn-ghost btn-block" id="pairToggleBtn" onclick="togglePair()">
+            📱 Itilize Pairing Code
+          </button>
+          <div class="pair-section" id="pairSection">
+            <input type="tel" id="phoneInput" placeholder="Nimewo: 50955394345" />
+            <button class="btn btn-primary btn-block" onclick="requestPairing()">🔑 Jwenn Pairing Code</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Enstriksyon</div>
+          <div style="font-size:0.82rem; color:var(--text2); line-height:1.8;">
+            <p style="margin-bottom:10px;"><strong style="color:var(--text);">Etap 1</strong> — Ouvri WhatsApp sou telefòn ou</p>
+            <p style="margin-bottom:10px;"><strong style="color:var(--text);">Etap 2</strong> — Ale nan <em>Settings → Linked Devices</em></p>
+            <p style="margin-bottom:10px;"><strong style="color:var(--text);">Etap 3</strong> — Klike <em>"Link a Device"</em></p>
+            <p style="margin-bottom:10px;"><strong style="color:var(--text);">Etap 4</strong> — Skan QR code ki parèt agòch la</p>
+            <hr style="border-color:var(--border);margin:12px 0;">
+            <p style="color:var(--text3);">Oswa itilize Pairing Code si kamera pa disponib.</p>
+          </div>
         </div>
       </div>
     </div>
 
+    <!-- ── GROUPS PAGE ── -->
+    <div id="page-groups" class="page">
+      <div class="page-title">👥 Gwoup yo <span>— Jesyon</span></div>
+      <div class="card">
+        <div class="groups-bar">
+          <input type="text" id="groupSearch" placeholder="🔍 Chèche gwoup..." oninput="filterGroups()">
+          <button class="btn btn-ghost" onclick="loadGroups()">🔄 Rafraîchi</button>
+          <button class="btn btn-green"  onclick="toggleAll(true)">✅ Tout ON</button>
+          <button class="btn btn-danger" onclick="toggleAll(false)">❌ Tout OFF</button>
+        </div>
+        <div class="groups-count" id="groupsCount" style="display:none;">
+          Bot aktif nan <strong id="groupsActiveCount">0</strong> / <strong id="groupsTotalCount">0</strong> gwoup
+        </div>
+        <div id="groupsContainer" class="group-list">
+          <div class="empty-box">
+            <div class="ei">👥</div>
+            <p>Konekte WhatsApp an premye</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── COMMANDS PAGE ── -->
+    <div id="page-commands" class="page">
+      <div class="page-title">⚡ Kòmand yo <span id="cmdCountTitle"></span></div>
+      <div class="cmd-search-wrap">
+        <input type="text" class="cmd-search" id="cmdSearch" placeholder="Chèche kòmand..." oninput="filterCmds()">
+      </div>
+      <div id="cmdContainer">
+        <div class="empty-box">
+          <div class="ei">⏳</div>
+          <p>Ap chaje kòmand yo...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LOGS PAGE ── -->
+    <div id="page-logs" class="page">
+      <div class="page-title">📋 Live Logs <span>— Console</span></div>
+      <div class="card">
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <button class="btn btn-ghost" onclick="document.getElementById('logBox').innerHTML=''">🗑️ Netwaye</button>
+          <span style="flex:1;"></span>
+          <span id="logCount" style="font-size:0.75rem;color:var(--text3);align-self:center;">0 liy</span>
+        </div>
+        <div class="log-box" id="logBox">
+          <div class="log-line"><span class="lt">--:--:--</span><span class="li">Ap tann logs...</span></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MOBILE NAV -->
+<div class="mobile-nav">
+  <div class="mobile-nav-inner">
+    <button class="mob-btn active" onclick="navTo('dashboard',this)" data-mob>
+      <span class="mi">📊</span>Stats
+    </button>
+    <button class="mob-btn" onclick="navTo('connection',this)" data-mob>
+      <span class="mi">📱</span>QR
+    </button>
+    <button class="mob-btn" onclick="navTo('groups',this)" data-mob>
+      <span class="mi">👥</span>Gwoup
+    </button>
+    <button class="mob-btn" onclick="navTo('commands',this)" data-mob>
+      <span class="mi">⚡</span>Kòmand
+    </button>
+    <button class="mob-btn" onclick="navTo('logs',this)" data-mob>
+      <span class="mi">📋</span>Logs
+    </button>
   </div>
 </div>
 
 <script>
-  const socket = io();
-  let updateInterval;
+const socket = io();
+let allGroups = [], allCmds = [];
 
-  function setStatus(state) {
-    const badge = document.getElementById('statusBadge');
-    const text  = document.getElementById('statusText');
-    const dot   = badge.querySelector('.status-dot');
-    badge.className = 'status-badge ' + (state === 'open' ? 'online' : state === 'qr' ? 'qr' : state === 'close' ? 'offline' : 'connecting');
-    dot.className   = 'status-dot '   + (state === 'open' ? 'online' : state === 'qr' ? 'qr'  : state === 'close' ? 'offline' : 'connecting');
-    text.textContent = state === 'open' ? 'ONLINE ✅' : state === 'qr' ? 'SCAN QR CODE 📷' : state === 'close' ? 'OFFLINE ❌' : 'CONNECTING...';
+// ── NAVIGATION ──────────────────────────────────────────────────
+function navTo(page, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('[data-mob]').forEach(n => n.classList.remove('active'));
+  if (el) {
+    el.classList.add('active');
+    // sync mobile/desktop
+    const idx = [...document.querySelectorAll('.nav-item')].indexOf(el);
+    const mobs = document.querySelectorAll('[data-mob]');
+    if (idx >= 0 && mobs[idx]) mobs[idx].classList.add('active');
+    const mobIdx = [...mobs].indexOf(el);
+    const navs = document.querySelectorAll('.nav-item');
+    if (mobIdx >= 0 && navs[mobIdx]) navs[mobIdx].classList.add('active');
   }
 
-  function applyState(data) {
-    setStatus(data.connection || 'connecting');
-    if (data.stats) {
-      document.getElementById('statMsgs').textContent   = data.stats.messagesProcessed || 0;
-      document.getElementById('statCmds').textContent   = data.stats.commandsExecuted  || 0;
-      document.getElementById('statErrors').textContent = data.stats.errors || 0;
-    }
-    if (data.config) {
-      document.getElementById('infoBotName').textContent  = data.config.BOT_NAME  || '—';
-      document.getElementById('infoOwner').textContent    = data.config.OWNER_NAME || '—';
-      document.getElementById('infoPrefix').textContent   = data.config.PREFIX     || '—';
-      document.getElementById('infoMode').textContent     = data.config.MODE       || '—';
-    }
-    if (data.totalCommands) document.getElementById('infoCommands').textContent = data.totalCommands;
-    if (data.uptime !== undefined) document.getElementById('infoUptime').textContent = formatUptime(data.uptime);
+  if (page === 'groups' && !allGroups.length) loadGroups();
+  if (page === 'commands' && !allCmds.length) loadCmds();
+}
 
-    if (data.connection === 'open') {
-      document.getElementById('qrSection').style.display = 'none';
-      document.getElementById('connectedSection').style.display = 'block';
-      if (data.userName) document.getElementById('connectedName').textContent = data.userName;
-      if (data.userJid)  document.getElementById('connectedJid').textContent  = data.userJid;
-    }
-  }
-
-  // Initial fetch
-  fetch('/api/state').then(r => r.json()).then(data => {
-    applyState(data);
-    if (data.qr) showQR(data.qr);
-    if (data.pairingCode) showPairingCode(data.pairingCode);
-    if (data.logs) {
-      data.logs.slice().reverse().forEach(entry => addLog(entry));
-    }
-  }).catch(e => console.error('State fetch error:', e));
-
-  // Socket events
-  socket.on('state', (data) => applyState(data));
-  socket.on('logs', (entries) => {
-    entries.slice().reverse().forEach(e => addLog(e));
+// ── STATUS ──────────────────────────────────────────────────────
+function setStatus(s) {
+  const map = {
+    open: ['online','ONLINE ✅'], qr: ['qr','SKAN QR 📷'],
+    close: ['offline','OFFLINE ❌'], connecting: ['connecting','KONEKTE...'],
+  };
+  const [cls, txt] = map[s] || map.connecting;
+  ['sideStatusPill','sideStatusDot','sideStatusTxt'].forEach(id => {
+    const el = document.getElementById(id);
+    if (id === 'sideStatusTxt') el.textContent = txt;
+    else { el.className = (id === 'sideStatusPill' ? 'status-pill ' : 'status-dot ') + cls; }
   });
+}
 
-  socket.on('qr', (qrDataUrl) => {
-    setStatus('qr');
-    showQR(qrDataUrl);
+// ── APPLY STATE ──────────────────────────────────────────────────
+function applyState(d) {
+  setStatus(d.connection || 'connecting');
+
+  if (d.stats) {
+    document.getElementById('statMsgs').textContent   = d.stats.messagesProcessed || 0;
+    document.getElementById('statCmds').textContent   = d.stats.commandsExecuted  || 0;
+    document.getElementById('statErrors').textContent = d.stats.errors || 0;
+  }
+  if (d.uptime !== undefined) {
+    document.getElementById('statUptime').textContent = fmtUptime(d.uptime);
+    document.getElementById('iCmdCount').textContent  = d.totalCommands || '—';
+  }
+  if (d.config) {
+    document.getElementById('iBotName').textContent = d.config.BOT_NAME  || '—';
+    document.getElementById('iOwner').textContent   = d.config.OWNER_NAME || '—';
+    document.getElementById('iPrefix').textContent  = d.config.PREFIX    || '—';
+    document.getElementById('iMode').textContent    = d.config.MODE      || '—';
+  }
+
+  const isOpen = d.connection === 'open';
+  ['dashConnBox','qrSection'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isOpen ? 'none' : 'flex';
   });
-
-  socket.on('pairingCode', (code) => {
-    showPairingCode(code);
+  ['dashConnected','connectedSection'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isOpen ? 'block' : 'none';
   });
-
-  socket.on('stats', (stats) => {
-    document.getElementById('statMsgs').textContent   = stats.messagesProcessed || 0;
-    document.getElementById('statCmds').textContent   = stats.commandsExecuted  || 0;
-    document.getElementById('statErrors').textContent = stats.errors || 0;
-  });
-
-  socket.on('log', (entry) => addLog(entry));
-
-  function showQR(qrDataUrl) {
-    document.getElementById('qrSection').style.display = 'block';
-    document.getElementById('connectedSection').style.display = 'none';
-    document.getElementById('qrSection').innerHTML =
-      `<div class="qr-container">
-         <img src="${qrDataUrl}" alt="QR Code"/>
-         <div class="qr-label">📱 Scan with WhatsApp to connect</div>
-       </div>`;
+  if (isOpen) {
+    if (d.userName) {
+      document.getElementById('dashConnName').textContent = d.userName;
+      document.getElementById('connName').textContent     = d.userName;
+    }
+    if (d.userJid) {
+      const num = d.userJid.split(':')[0].split('@')[0];
+      document.getElementById('dashConnJid').textContent = '+' + num;
+      document.getElementById('connJid').textContent     = '+' + num;
+      document.getElementById('iConnNum').textContent    = '+' + num;
+    }
   }
+}
 
-  function showPairingCode(code) {
-    document.getElementById('pairingCodeDisplay').innerHTML =
-      `<div class="pairing-code">${code}</div>
-       <p style="text-align:center;color:#fcd34d;font-size:0.8rem;">Enter this code in WhatsApp → Settings → Linked Devices</p>`;
-  }
+// ── INITIAL LOAD ─────────────────────────────────────────────────
+fetch('/api/state').then(r => r.json()).then(d => {
+  applyState(d);
+  if (d.qr) showQR(d.qr);
+  if (d.pairingCode) showPairCode(d.pairingCode);
+  if (d.logs) d.logs.slice().reverse().forEach(addLog);
+});
 
-  function addLog(entry) {
-    const container = document.getElementById('logContainer');
-    const time = new Date(entry.time).toLocaleTimeString();
-    const div  = document.createElement('div');
-    div.className = 'log-entry';
-    div.innerHTML = `<span class="log-time">${time}</span> <span class="log-${entry.level}">${escapeHtml(entry.msg)}</span>`;
-    container.prepend(div);
-    if (container.children.length > 150) container.lastChild.remove();
-  }
+// ── SOCKET EVENTS ────────────────────────────────────────────────
+socket.on('state',      d  => { applyState(d); if (d.connection==='open' && !allGroups.length) { setTimeout(loadGroups, 1500); } });
+socket.on('qr',         qr => { setStatus('qr'); showQR(qr); });
+socket.on('pairingCode',c  => showPairCode(c));
+socket.on('stats',      s  => {
+  document.getElementById('statMsgs').textContent   = s.messagesProcessed || 0;
+  document.getElementById('statCmds').textContent   = s.commandsExecuted  || 0;
+  document.getElementById('statErrors').textContent = s.errors || 0;
+});
+socket.on('log',  e => addLog(e));
+socket.on('logs', es => es.slice().reverse().forEach(addLog));
 
-  function escapeHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
+// Periodic refresh
+setInterval(() => {
+  fetch('/api/state').then(r => r.json()).then(d => applyState(d)).catch(()=>{});
+}, 6000);
 
-  function formatUptime(secs) {
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    return `${h}h ${m}m ${s}s`;
-  }
-
-  // Periodic state refresh
-  updateInterval = setInterval(() => {
-    fetch('/api/state').then(r => r.json()).then(data => {
-      if (data.uptime !== undefined) document.getElementById('infoUptime').textContent = formatUptime(data.uptime);
-      if (data.stats) {
-        document.getElementById('statMsgs').textContent   = data.stats.messagesProcessed || 0;
-        document.getElementById('statCmds').textContent   = data.stats.commandsExecuted  || 0;
-        document.getElementById('statErrors').textContent = data.stats.errors || 0;
-      }
-    }).catch(() => {});
-  }, 5000);
-
-  function togglePairing() {
-    const section = document.getElementById('pairingSection');
-    const btn     = document.getElementById('togglePairingBtn');
-    const visible = section.style.display === 'block';
-    section.style.display = visible ? 'none' : 'block';
-    btn.textContent = visible ? '📱 USE PAIRING CODE INSTEAD' : '📷 USE QR CODE INSTEAD';
-  }
-
-  function requestPairing() {
-    const phone = document.getElementById('phoneInput').value.trim();
-    if (!phone) { alert('Enter your phone number with country code'); return; }
-    fetch('/api/pairing', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phoneNumber: phone }),
-    }).then(r => r.json()).then(d => {
-      if (d.ok) {
-        document.getElementById('pairingCodeDisplay').innerHTML =
-          '<p style="color:#fcd34d;text-align:center;padding:15px;">⏳ Requesting pairing code...</p>';
-      }
+// ── QR / PAIRING ─────────────────────────────────────────────────
+function showQR(url) {
+  document.getElementById('qrSection').innerHTML =
+    `<div class="qr-wrap"><div class="qr-frame"><img src="${url}" alt="QR"></div>
+     <p class="qr-hint">📱 Skan ak WhatsApp → Linked Devices</p></div>`;
+  document.getElementById('qrSection').style.display = 'block';
+  document.getElementById('connectedSection').style.display = 'none';
+}
+function showPairCode(code) {
+  document.getElementById('pairCodeDisplay').innerHTML =
+    `<div class="pair-code">${code}</div>
+     <p class="pair-hint">Antre kòd sa nan WhatsApp → Settings → Linked Devices</p>`;
+}
+function togglePair() {
+  const s = document.getElementById('pairSection');
+  const b = document.getElementById('pairToggleBtn');
+  const v = s.style.display === 'block';
+  s.style.display = v ? 'none' : 'block';
+  b.textContent = v ? '📱 Itilize Pairing Code' : '📷 Itilize QR Code';
+}
+function requestPairing() {
+  const p = document.getElementById('phoneInput').value.trim();
+  if (!p) return alert('Antre nimewo ou ak kòd peyi a (ex: 50955394345)');
+  fetch('/api/pairing', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phoneNumber:p})})
+    .then(r=>r.json()).then(d => {
+      if (d.ok) document.getElementById('pairCodeDisplay').innerHTML =
+        '<p style="color:var(--yellow);text-align:center;padding:15px;">⏳ Ap chèche kòd la...</p>';
     });
-  }
+}
 
-  function restartBot() {
-    if (!confirm('Restart the bot connection?')) return;
-    fetch('/api/restart', { method: 'POST' });
-    setStatus('connecting');
-    document.getElementById('qrSection').innerHTML = '<div class="empty-state"><div class="icon">⏳</div><p>Restarting...</p></div>';
-    document.getElementById('connectedSection').style.display = 'none';
-  }
+// ── RESTART ───────────────────────────────────────────────────────
+function restartBot() {
+  if (!confirm('Restarté bot la?')) return;
+  fetch('/api/restart', {method:'POST'});
+  setStatus('connecting');
+}
 
-  // ═══════════════════════════════════════════════════
-  // GROUPS PANEL
-  // ═══════════════════════════════════════════════════
-  let allGroups = [];
+// ── LOGS ──────────────────────────────────────────────────────────
+let logCount = 0;
+function addLog(e) {
+  const box  = document.getElementById('logBox');
+  const time = new Date(e.time).toLocaleTimeString();
+  const div  = document.createElement('div');
+  div.className = 'log-line';
+  div.innerHTML = `<span class="lt">${time}</span><span class="l${e.level[0]}">${esc(e.msg)}</span>`;
+  box.prepend(div);
+  if (box.children.length > 200) box.lastChild.remove();
+  logCount++;
+  document.getElementById('logCount').textContent = logCount + ' liy';
+}
 
-  async function loadGroups() {
-    const container = document.getElementById('groupsContainer');
-    container.innerHTML = '<div class="loading-groups">⏳ Chaje gwoup yo...</div>';
-    try {
-      const res  = await fetch('/api/groups');
-      const data = await res.json();
-      if (!data.ok) {
-        container.innerHTML = `<div class="loading-groups">⚠️ ${escapeHtml(data.error || 'Erè enkoni')}</div>`;
-        return;
-      }
-      allGroups = data.groups;
-      renderGroups(allGroups);
-    } catch (e) {
-      container.innerHTML = '<div class="loading-groups">❌ Pa kapab chaje gwoup yo</div>';
-    }
-  }
-
-  function renderGroups(groups) {
-    const container = document.getElementById('groupsContainer');
-    const summary   = document.getElementById('groupsSummary');
-    const activeCount = groups.filter(g => g.active).length;
-
-    document.getElementById('groupsActiveCount').textContent = activeCount;
-    document.getElementById('groupsTotalCount').textContent  = groups.length;
-    summary.style.display = groups.length ? 'block' : 'none';
-
-    if (!groups.length) {
-      container.innerHTML = '<div class="loading-groups">📭 Pa gen gwoup yo jwenn</div>';
-      return;
-    }
-
-    container.innerHTML = groups.map(g => `
-      <div class="group-item ${g.active ? '' : 'inactive'}" id="gi-${CSS.escape(g.jid)}">
-        <div class="group-info">
-          <div class="group-name">${escapeHtml(g.name)}</div>
-          <div class="group-meta">👥 ${g.participants} manm  ·  ${g.jid.split('@')[0]}</div>
-        </div>
-        <div class="group-controls">
-          <div class="toggle-wrap">
-            <span class="toggle-label">Bot</span>
-            <label class="toggle">
-              <input type="checkbox" ${g.active ? 'checked' : ''}
-                onchange="toggleGroup('${g.jid}','botActive',this.checked)">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="toggle-wrap">
-            <span class="toggle-label">Welcome</span>
-            <label class="toggle">
-              <input type="checkbox" ${g.welcome ? 'checked' : ''}
-                onchange="toggleGroup('${g.jid}','welcome',this.checked)">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="toggle-wrap">
-            <span class="toggle-label">AntiLink</span>
-            <label class="toggle">
-              <input type="checkbox" ${g.antiLink ? 'checked' : ''}
-                onchange="toggleGroup('${g.jid}','antiLink',this.checked)">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-        </div>
-      </div>`).join('');
-  }
-
-  function filterGroups() {
-    const q = document.getElementById('groupSearch').value.toLowerCase();
-    if (!q) { renderGroups(allGroups); return; }
-    renderGroups(allGroups.filter(g => g.name.toLowerCase().includes(q)));
-  }
-
-  async function toggleGroup(jid, field, value) {
-    // Update local state immediately
-    const g = allGroups.find(x => x.jid === jid);
-    if (g) { g[field] = value; if (field === 'botActive') g.active = value; }
-    // Dim/undim row for botActive
-    if (field === 'botActive') {
-      const row = document.getElementById('gi-' + CSS.escape(jid));
-      if (row) row.classList.toggle('inactive', !value);
-    }
-    // Update count
-    const activeCount = allGroups.filter(x => x.active).length;
-    document.getElementById('groupsActiveCount').textContent = activeCount;
-    // Save to server
-    try {
-      await fetch('/api/groups/toggle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jid, field, value }),
-      });
-    } catch(e) { console.error('Toggle failed', e); }
-  }
-
-  async function toggleAll(active) {
-    if (!allGroups.length) return;
-    const label = active ? 'aktive' : 'deaktive';
-    if (!confirm(`${label.charAt(0).toUpperCase() + label.slice(1)} bot la nan tout ${allGroups.length} gwoup yo?`)) return;
-    for (const g of allGroups) {
-      g.botActive = active; g.active = active;
-    }
+// ── GROUPS ────────────────────────────────────────────────────────
+async function loadGroups() {
+  const c = document.getElementById('groupsContainer');
+  c.innerHTML = '<div class="empty-box"><div class="ei">⏳</div><p>Ap chaje gwoup yo...</p></div>';
+  try {
+    const d = await fetch('/api/groups').then(r=>r.json());
+    if (!d.ok) { c.innerHTML=`<div class="empty-box"><div class="ei">⚠️</div><p>${esc(d.error||'Erè')}</p></div>`; return; }
+    allGroups = d.groups;
     renderGroups(allGroups);
-    for (const g of allGroups) {
-      try {
-        await fetch('/api/groups/toggle', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jid: g.jid, field: 'botActive', value: active }),
-        });
-      } catch(e) {}
-    }
-  }
+  } catch { c.innerHTML='<div class="empty-box"><div class="ei">❌</div><p>Pa kapab chaje</p></div>'; }
+}
 
-  // Auto-load groups once bot connects
-  socket.on('state', (data) => {
-    applyState(data);
-    if (data.connection === 'open' && !allGroups.length) {
-      setTimeout(loadGroups, 1500);
+function renderGroups(gs) {
+  const c = document.getElementById('groupsContainer');
+  const active = gs.filter(g=>g.active).length;
+  const countEl = document.getElementById('groupsCount');
+  document.getElementById('groupsActiveCount').textContent = active;
+  document.getElementById('groupsTotalCount').textContent  = gs.length;
+  countEl.style.display = gs.length ? 'block' : 'none';
+
+  if (!gs.length) { c.innerHTML='<div class="empty-box"><div class="ei">📭</div><p>Pa gen gwoup</p></div>'; return; }
+
+  c.innerHTML = gs.map(g => {
+    const initials = (g.name||'G').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    return `
+    <div class="group-row ${g.active?'':'inactive'}" id="gr-${CSS.escape(g.jid)}">
+      <div class="group-avatar">${initials}</div>
+      <div class="group-info">
+        <div class="group-name">${esc(g.name)}</div>
+        <div class="group-meta">👥 ${g.participants} manm</div>
+      </div>
+      <div class="group-toggles">
+        ${mkTgl(g.jid,'botActive',g.active,'Bot')}
+        ${mkTgl(g.jid,'welcome',g.welcome,'Welcome')}
+        ${mkTgl(g.jid,'antiLink',g.antiLink,'AntiLink')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function mkTgl(jid, field, val, lbl) {
+  return `<div class="tgl-wrap">
+    <label class="tgl"><input type="checkbox" ${val?'checked':''} onchange="tglGroup('${jid}','${field}',this.checked)"><span class="tgl-track"></span></label>
+    <span class="tgl-lbl">${lbl}</span>
+  </div>`;
+}
+
+function filterGroups() {
+  const q = document.getElementById('groupSearch').value.toLowerCase();
+  renderGroups(q ? allGroups.filter(g=>g.name.toLowerCase().includes(q)) : allGroups);
+}
+
+async function tglGroup(jid, field, val) {
+  const g = allGroups.find(x=>x.jid===jid);
+  if (g) { g[field]=val; if(field==='botActive') g.active=val; }
+  if (field==='botActive') {
+    const row = document.getElementById('gr-'+CSS.escape(jid));
+    if (row) row.classList.toggle('inactive', !val);
+    document.getElementById('groupsActiveCount').textContent = allGroups.filter(x=>x.active).length;
+  }
+  try {
+    await fetch('/api/groups/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({jid,field,value:val})});
+  } catch {}
+}
+
+async function toggleAll(val) {
+  if (!allGroups.length) return;
+  if (!confirm(`${val?'Aktive':'Deaktive'} bot nan tout ${allGroups.length} gwoup yo?`)) return;
+  allGroups.forEach(g=>{g.botActive=val;g.active=val;});
+  renderGroups(allGroups);
+  for (const g of allGroups) {
+    try { await fetch('/api/groups/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jid:g.jid,field:'botActive',value:val})}); } catch {}
+  }
+}
+
+// ── COMMANDS ─────────────────────────────────────────────────────
+async function loadCmds() {
+  try {
+    const d = await fetch('/api/state').then(r=>r.json());
+    // We'll parse from the bot via /api/commands if it exists, otherwise show placeholder
+    const res = await fetch('/api/commands').then(r=>r.json()).catch(()=>null);
+    if (res && res.commands) {
+      allCmds = res.commands;
+    } else {
+      // Fallback: hardcode categories from known commands
+      allCmds = getHardcodedCmds();
     }
+    renderCmds(allCmds);
+  } catch { renderCmds(getHardcodedCmds()); }
+}
+
+function renderCmds(cmds) {
+  const c = document.getElementById('cmdContainer');
+  document.getElementById('cmdCountTitle').textContent = `— ${cmds.length} kòmand`;
+
+  const cats = {};
+  const catIcons = {ai:'🤖',downloader:'📥',group:'👥',media:'🎬',fun:'🎮',tools:'🛠️',owner:'👑',economy:'💎',other:'📋'};
+  const order = ['ai','downloader','group','media','fun','tools','economy','owner','other'];
+  cmds.forEach(cmd => {
+    const cat = cmd.category || 'other';
+    if (!cats[cat]) cats[cat] = [];
+    cats[cat].push(cmd);
   });
+
+  const sorted = Object.keys(cats).sort((a,b) => order.indexOf(a)-order.indexOf(b));
+  c.innerHTML = sorted.map(cat => {
+    const icon = catIcons[cat] || '📋';
+    return `<div class="cat-block">
+      <div class="cat-label">${icon} ${cat} (${cats[cat].length})</div>
+      <div class="cmd-grid">
+        ${cats[cat].map(cmd => {
+          const tags = [
+            cmd.groupOnly ? '<span class="cmd-tag tag-group">Gwoup</span>' : '',
+            cmd.adminOnly ? '<span class="cmd-tag tag-admin">Admin</span>' : '',
+            cmd.ownerOnly ? '<span class="cmd-tag tag-owner">Owner</span>' : '',
+            cmd.premiumOnly ? '<span class="cmd-tag tag-premium">Premium</span>' : '',
+          ].join('');
+          return `<div class="cmd-item">
+            <div class="cmd-name">.${cmd.name}</div>
+            <div class="cmd-desc">${esc(cmd.description || '—')}</div>
+            ${tags ? `<div class="cmd-tags">${tags}</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterCmds() {
+  const q = document.getElementById('cmdSearch').value.toLowerCase();
+  renderCmds(q ? allCmds.filter(c=>c.name.toLowerCase().includes(q)||(c.description||'').toLowerCase().includes(q)) : allCmds);
+}
+
+function getHardcodedCmds() {
+  return [
+    {name:'vv',category:'fun',description:'Vue unique — kart siyati + tout kòmand'},
+    {name:'menu',category:'fun',description:'Montre menu bot la'},
+    {name:'alive',category:'fun',description:'Tcheke si bot la aktif'},
+    {name:'ping',category:'fun',description:'Ping — tcheke vitès bot'},
+    {name:'joke',category:'fun',description:'Yon blag aletwaz'},
+    {name:'8ball',category:'fun',description:'Maji 8-ball reponn kesyon'},
+    {name:'dice',category:'fun',description:'Voye yon de (1-6)'},
+    {name:'quote',category:'fun',description:'Yon pawòl motivasyon'},
+    {name:'ai',category:'ai',description:'Pale ak Demon AI'},
+    {name:'gemini',category:'ai',description:'Google Gemini AI'},
+    {name:'gpt',category:'ai',description:'ChatGPT AI'},
+    {name:'imgai',category:'ai',description:'Deskripsyon imaj ak AI'},
+    {name:'translateai',category:'ai',description:'Tradwi tèks ak AI'},
+    {name:'summarize',category:'ai',description:'Rezime tèks ak AI'},
+    {name:'explain',category:'ai',description:'Eksplike yon bagay'},
+    {name:'codeai',category:'ai',description:'Èd pwogramasyon ak AI'},
+    {name:'ytmp3',category:'downloader',description:'Téléchargé YouTube an MP3'},
+    {name:'ytmp4',category:'downloader',description:'Téléchargé YouTube an MP4'},
+    {name:'tiktok',category:'downloader',description:'Téléchargé TikTok'},
+    {name:'ig',category:'downloader',description:'Téléchargé Instagram'},
+    {name:'facebook',category:'downloader',description:'Téléchargé Facebook'},
+    {name:'twitter',category:'downloader',description:'Téléchargé Twitter/X'},
+    {name:'play',category:'downloader',description:'Jwenn & téléchargé mizik'},
+    {name:'mediafire',category:'downloader',description:'Téléchargé Mediafire'},
+    {name:'sticker',category:'media',description:'Fè sticker ak imaj/videyo'},
+    {name:'kick',category:'group',description:'Retire yon manm gwoup',groupOnly:true,adminOnly:true},
+    {name:'tagall',category:'group',description:'Tag tout manm gwoup',groupOnly:true,adminOnly:true},
+    {name:'promote',category:'group',description:'Fè yon manm vin admin',groupOnly:true,adminOnly:true},
+    {name:'demote',category:'group',description:'Retire dwa admin',groupOnly:true,adminOnly:true},
+    {name:'open',category:'group',description:'Louvri gwoup pou tout moun',groupOnly:true,adminOnly:true},
+    {name:'close',category:'group',description:'Fèmen gwoup pou admins sèlman',groupOnly:true,adminOnly:true},
+    {name:'antilink',category:'group',description:'Aktive/deaktive antilink',groupOnly:true,adminOnly:true},
+    {name:'welcome',category:'group',description:'Aktive/deaktive welcome',groupOnly:true,adminOnly:true},
+    {name:'mute',category:'group',description:'Silans mode',groupOnly:true,adminOnly:true},
+    {name:'unmute',category:'group',description:'Deaktive silans',groupOnly:true,adminOnly:true},
+    {name:'info',category:'group',description:'Info gwoup la',groupOnly:true},
+    {name:'balance',category:'economy',description:'Wè balans ou'},
+    {name:'daily',category:'economy',description:'Resevwa rèkonpans jounen an'},
+    {name:'work',category:'economy',description:'Travay pou jwenn lajan'},
+    {name:'deposit',category:'economy',description:'Depoze nan bank'},
+    {name:'withdraw',category:'economy',description:'Retire nan bank'},
+    {name:'transfer',category:'economy',description:'Voye lajan bay yon moun'},
+    {name:'profile',category:'economy',description:'Wè profil ekonomik ou'},
+    {name:'tts',category:'tools',description:'Tèks → Vwa (Text-to-Speech)'},
+    {name:'trt',category:'tools',description:'Tradwi tèks'},
+    {name:'weather',category:'tools',description:'Meteo yon vil'},
+    {name:'broadcast',category:'owner',description:'Voye mesaj a tout gwoup',ownerOnly:true},
+    {name:'eval',category:'owner',description:'Ekzekite kòd JavaScript',ownerOnly:true},
+    {name:'mode',category:'owner',description:'Chanje mode bot',ownerOnly:true},
+    {name:'restart',category:'owner',description:'Restarté bot la',ownerOnly:true},
+  ];
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtUptime(s) {
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
+  return h>0?`${h}h ${m}m`:`${m}m ${sec}s`;
+}
 </script>
 </body>
 </html>

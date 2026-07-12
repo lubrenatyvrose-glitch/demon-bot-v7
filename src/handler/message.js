@@ -26,8 +26,13 @@ function randomEmoji() {
  */
 async function messageHandler(sock, m) {
   try {
-    // Skip processing for status broadcasts and ephemeral messages
-    if (m.key.remoteJid === "status@broadcast") return;
+    // ── Auto-read statuses (stories) ────────────────────────────
+    if (m.key.remoteJid === "status@broadcast") {
+      if (config.AUTO_STATUS_READ) {
+        try { await sock.readMessages([m.key]); } catch (_) {}
+      }
+      return;
+    }
 
     const chatId = getChatId(m);
     const sender = getSender(m);
@@ -49,18 +54,21 @@ async function messageHandler(sock, m) {
       await sock.readMessages([m.key]);
     }
 
-    // ── Auto-react with random emoji ────────────────────────
-    // React to every real message (text, image, video, sticker…)
+    // ── Auto-react (GROUPS ONLY — not contacts) ─────────────
     const reactableTypes = [
       "conversation","extendedTextMessage","imageMessage","videoMessage",
-      "audioMessage","stickerMessage","documentMessage","reactionMessage",
+      "audioMessage","stickerMessage","documentMessage",
     ];
-    if (reactableTypes.includes(msgType) && config.ENABLE_REACTIONS) {
-      try {
-        await sock.sendMessage(chatId, {
-          react: { text: randomEmoji(), key: m.key },
-        });
-      } catch (_) {}
+    if (groupChat && reactableTypes.includes(msgType) && config.ENABLE_REACTIONS) {
+      // Don't react to bot's own messages
+      const botJid = sock.user?.id?.split(":")[0] + "@s.whatsapp.net";
+      if (sender !== botJid) {
+        try {
+          await sock.sendMessage(chatId, {
+            react: { text: randomEmoji(), key: m.key },
+          });
+        } catch (_) {}
+      }
     }
 
     // ── Group Events ────────────────────────────────────────────

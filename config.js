@@ -18,7 +18,7 @@ module.exports = {
   AUTO_READ: true,
   AUTO_TYPING: false,
   AUTO_RECORDING: false,
-  AUTO_STATUS_READ: false,
+  AUTO_STATUS_READ: process.env.AUTO_STATUS_READ !== "false", // true by default
   AUTO_BIO: false,
   ALWAYS_ONLINE: false,
 
