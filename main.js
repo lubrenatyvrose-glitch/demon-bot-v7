@@ -1,7 +1,10 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║         🔥  DEMON BOT V7  🔥                                             ║
+// ║                                                                          ║
+// ║         🔥 DEMON BOT V7  🔥                                             ║
 // ║         Premium WhatsApp Multi-Device Bot + WEB DASHBOARD                 ║
-// ║         Owner: King Fixed  |  Version: 7.0.0                             ║
+// ║         Owner: King Fixed                                                ║
+// ║         Version: 7.0.1                                                   ║
+// ║                                                                          ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
 const {
@@ -23,16 +26,24 @@ const QRCode = require("qrcode");
 
 const config = require("./config");
 const { messageHandler } = require("./src/handler/message");
-const { ensureDB } = require("./src/lib/database");
+const { ensureDB, readDB, getBotSetting } = require("./src/lib/database");
 const { loadCommands, getAllCommands } = require("./src/handler/commandHandler");
 
 // ═══════════════════════════════════════════════════════════════
-// GLOBAL STATE (shared with dashboard)
+// LOAD PERSISTED SETTINGS
+// ═══════════════════════════════════════════════════════════════
+
+ensureDB();
+const savedMode = getBotSetting("botMode");
+if (savedMode) config.MODE = savedMode;
+
+// ═══════════════════════════════════════════════════════════════
+// GLOBAL STATE
 // ═══════════════════════════════════════════════════════════════
 
 global.__BOT_START_TIME = Date.now();
 global.__BOT_STATE = {
-  connection: "connecting",
+  connection: "close",
   qr: null,
   pairingCode: null,
   phoneNumber: null,
@@ -47,13 +58,21 @@ global.__BOT_STATE = {
   },
 };
 
+// Pairing flags (demon-bot approach — no env vars)
+global.__WANT_PAIRING = false;
+global.__PAIRING_PHONE = null;
+
+// Privacy mode — when ON, bot ignores ALL incoming messages
+let privacyMode = true;
+
 function addLog(level, msg) {
   const entry = { time: new Date().toISOString(), level, msg };
   global.__BOT_STATE.logs.unshift(entry);
-  if (global.__BOT_STATE.logs.length > 200) global.__BOT_STATE.logs.pop();
+  if (global.__BOT_STATE.logs.length > 300) global.__BOT_STATE.logs.pop();
   if (global.__io) global.__io.emit("log", entry);
 }
 
+// Override console.log to capture logs
 const origLog = console.log;
 const origError = console.error;
 console.log = (...args) => { origLog(...args); addLog("info", args.join(" ")); };
@@ -65,9 +84,7 @@ console.error = (...args) => { origError(...args); addLog("error", args.join(" "
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
-});
+const io = new Server(server);
 global.__io = io;
 
 const PORT = process.env.PORT || 3000;
@@ -75,22 +92,10 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, "web")));
 app.use(express.json());
 
-// Health check
-app.get("/healthz", (req, res) => res.json({ ok: true, bot: config.BOT_NAME }));
-
-// Download bot zip for GitHub
-app.get("/download", (req, res) => {
-  const zipPath = path.join(__dirname, "../../demon-bot-v7-github.zip");
-  if (fs.existsSync(zipPath)) {
-    res.download(zipPath, "demon-bot-v7.zip");
-  } else {
-    res.status(404).json({ error: "Fichye a pa disponib. Kontakte admin." });
-  }
-});
-
-// API: Get bot state
+// ── API: Get bot state ────────────────────────────────────
 app.get("/api/state", (req, res) => {
   res.json({
+    privacyMode,
     ...global.__BOT_STATE,
     config: {
       BOT_NAME: config.BOT_NAME,
@@ -104,125 +109,166 @@ app.get("/api/state", (req, res) => {
   });
 });
 
-// API: Restart bot connection
+// ── API: Restart bot ──────────────────────────────────────
 app.post("/api/restart", (req, res) => {
   res.json({ ok: true, msg: "Restarting..." });
   setTimeout(() => process.exit(1), 1000);
 });
 
-// API: Pairing code request
-app.post("/api/pairing", async (req, res) => {
+// ── API: Request pairing code (demon-bot approach) ────────
+app.post("/api/pairing", (req, res) => {
   const { phoneNumber } = req.body;
-  if (!phoneNumber) return res.json({ ok: false, error: "Phone number required" });
-  global.__BOT_STATE.phoneNumber = phoneNumber;
+  if (!phoneNumber) return res.json({ ok: false, msg: "Missing phone number" });
+
   global.__BOT_STATE.pairingCode = null;
-  res.json({ ok: true, msg: "Pairing code requested. Check the dashboard." });
-  // The bot's socket will request a pairing code on next connection
-  global.__PAIRING_PHONE = phoneNumber;
+  global.__BOT_STATE.qr = null;
+  global.__BOT_STATE.connection = "connecting";
+  io.emit("connectionState", { state: "connecting" });
+
+  // Clear old session
+  try { fs.removeSync(config.SESSION_DIR); fs.ensureDirSync(config.SESSION_DIR); } catch (e) {}
+  if (global.__sock) { try { global.__sock.end(); } catch (e) {} global.__sock = null; }
+
+  // Set global pairing flags (no env vars, no delay)
+  global.__PAIRING_PHONE = phoneNumber.replace(/\D/g, "");
   global.__WANT_PAIRING = true;
+
+  addLog("info", `Pairing requested for +${global.__PAIRING_PHONE}`);
+  res.json({ ok: true, msg: "Pairing code requested. Generating..." });
+
+  startBot();
 });
 
-// API: List all commands (for dashboard)
+// ── API: Logout ───────────────────────────────────────────
+app.post("/api/logout", (req, res) => {
+  if (global.__sock) { try { global.__sock.end(); } catch (e) {} global.__sock = null; }
+
+  try { fs.removeSync(config.SESSION_DIR); fs.ensureDirSync(config.SESSION_DIR); } catch (e) {}
+
+  global.__BOT_STATE.connection = "close";
+  global.__BOT_STATE.qr = null;
+  global.__BOT_STATE.pairingCode = null;
+  global.__BOT_STATE.userJid = null;
+  global.__BOT_STATE.userName = null;
+  global.__WANT_PAIRING = false;
+  global.__PAIRING_PHONE = null;
+
+  io.emit("connectionState", { state: "close" });
+  addLog("info", "Logged out — session cleared");
+  res.json({ ok: true, msg: "Successfully logged out!" });
+
+  startBot();
+});
+
+// ── API: Privacy mode toggle ──────────────────────────────
+app.post("/api/privacy", (req, res) => {
+  privacyMode = !privacyMode;
+  addLog("info", `Privacy: ${privacyMode ? "ON 🔒" : "OFF 🔓"}`);
+  io.emit("privacyMode", { privacyMode });
+  res.json({ ok: true, privacyMode });
+});
+app.get("/api/privacy", (req, res) => res.json({ privacyMode }));
+
+// ── API: Get commands ─────────────────────────────────────
 app.get("/api/commands", (req, res) => {
-  const { getAllCommands } = require("./src/handler/commandHandler");
-  const cmds = getAllCommands().map(c => ({
-    name: c.name,
-    aliases: c.aliases || [],
-    category: c.category || "other",
-    description: c.description || "",
-    usage: c.usage || "",
-    groupOnly: !!c.groupOnly,
-    adminOnly: !!c.adminOnly,
-    ownerOnly: !!c.ownerOnly,
-    premiumOnly: !!c.premiumOnly,
-  }));
-  res.json({ ok: true, total: cmds.length, commands: cmds });
+  const all = getAllCommands();
+  const cats = {};
+  for (const cmd of all) {
+    if (!cats[cmd.category]) cats[cmd.category] = [];
+    cats[cmd.category].push({ name: cmd.name, aliases: cmd.aliases, description: cmd.description });
+  }
+  res.json({ total: all.length, categories: cats });
 });
 
-// API: Get stats
-app.get("/api/stats", (req, res) => {
-  res.json({
-    stats: global.__BOT_STATE.stats,
-    uptime: Math.floor((Date.now() - global.__BOT_START_TIME) / 1000),
-    connection: global.__BOT_STATE.connection,
-    totalCommands: getAllCommands().length,
-  });
-});
-
-// API: Get all groups bot is in (live from WhatsApp)
+// ── API: Get groups ───────────────────────────────────────
 app.get("/api/groups", async (req, res) => {
-  if (!sock || global.__BOT_STATE.connection !== "open") {
-    return res.json({ ok: false, error: "Bot pa konekte ankò. Skan QR code a anvan.", groups: [] });
+  if (global.__BOT_STATE.connection !== "open" || !global.__sock) {
+    return res.json({ ok: false, msg: "Not connected yet", groups: [] });
   }
   try {
+    const sock = global.__sock;
+    const groups = await sock.groupFetchAllParticipating();
     const { getGroupSettings } = require("./src/lib/database");
-    const participating = await sock.groupFetchAllParticipating();
-    const groups = Object.entries(participating).map(([jid, meta]) => {
-      const settings = getGroupSettings(jid);
+    const groupList = Object.values(groups).map((g) => {
+      const settings = getGroupSettings(g.id);
       return {
-        jid,
-        name: meta.subject || "Gwoup San Non",
-        participants: meta.participants?.length || 0,
-        active: settings.botActive !== false, // default = active
-        welcome: settings.welcome,
-        antiLink: settings.antiLink,
+        id: g.id, subject: g.subject,
+        size: g.participants ? g.participants.length : 0,
+        botEnabled: settings.botEnabled !== false,
+        autoReact: settings.autoReact === true,
       };
     });
-    // Sort: active first, then by name
-    groups.sort((a, b) => (b.active - a.active) || a.name.localeCompare(b.name));
-    res.json({ ok: true, groups });
-  } catch (e) {
-    console.error("[GROUPS API]", e.message);
-    res.json({ ok: false, error: e.message, groups: [] });
-  }
+    res.json({ ok: true, groups: groupList });
+  } catch (e) { res.json({ ok: false, error: e.message, groups: [] }); }
 });
 
-// API: Toggle bot active in a group
+// ── API: Toggle group settings ────────────────────────────
 app.post("/api/groups/toggle", (req, res) => {
-  const { jid, field, value } = req.body;
-  if (!jid) return res.json({ ok: false, error: "JID requis" });
+  const { id, setting } = req.body;
+  if (!id || !setting) return res.json({ ok: false, msg: "Missing parameters" });
   const { getGroupSettings, saveGroupSettings } = require("./src/lib/database");
-  const current = getGroupSettings(jid);
-  const update = {};
-  update[field || "botActive"] = value !== undefined ? value : !current[field || "botActive"];
-  saveGroupSettings(jid, update);
-  res.json({ ok: true, jid, updated: update });
-  console.log(`[GROUPS] ${jid} → ${JSON.stringify(update)}`);
+  const settings = getGroupSettings(id);
+  const newVal = !settings[setting];
+  saveGroupSettings(id, { [setting]: newVal });
+  res.json({ ok: true, newVal });
 });
 
+// ── Socket.IO ─────────────────────────────────────────────
 io.on("connection", (socket) => {
   socket.emit("state", {
-    connection: global.__BOT_STATE.connection,
-    qr: global.__BOT_STATE.qr,
-    pairingCode: global.__BOT_STATE.pairingCode,
-    stats: global.__BOT_STATE.stats,
+    privacyMode,
+    ...global.__BOT_STATE,
+    uptime: Math.floor((Date.now() - global.__BOT_START_TIME) / 1000),
+    totalCommands: getAllCommands().length,
+    config: { BOT_NAME: config.BOT_NAME, OWNER_NAME: config.OWNER_NAME, PREFIX: config.PREFIX, MODE: config.MODE },
   });
-  socket.emit("logs", global.__BOT_STATE.logs.slice(0, 50));
+  socket.on("requestState", () => {
+    socket.emit("state", {
+      privacyMode,
+      ...global.__BOT_STATE,
+      uptime: Math.floor((Date.now() - global.__BOT_START_TIME) / 1000),
+      totalCommands: getAllCommands().length,
+    });
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════
-// BOT CONNECTION
+// PROCESS HANDLERS
+// ═══════════════════════════════════════════════════════════════
+
+process.on("uncaughtException", (e) => { addLog("error", `Uncaught: ${e.message}`); console.error(e); });
+process.on("unhandledRejection", (r) => { addLog("error", `Unhandled: ${String(r)}`); });
+process.on("SIGINT", async () => { if (global.__sock) try { await global.__sock.end(); } catch(e) {} process.exit(0); });
+process.on("SIGTERM", async () => { if (global.__sock) try { await global.__sock.end(); } catch(e) {} process.exit(0); });
+
+// ═══════════════════════════════════════════════════════════════
+// BOT CONNECTION — DEMON-BOT PROVEN APPROACH
 // ═══════════════════════════════════════════════════════════════
 
 let sock = null;
+global.__sock = null;
 let isConnecting = false;
 
 async function startBot() {
   if (isConnecting) return;
   isConnecting = true;
 
+  addLog("info", "═".repeat(40));
+  addLog("info", `Starting ${config.BOT_NAME} v7.0.1`);
+
   try {
     ensureDB();
-    loadCommands();
-    console.log(chalk.cyan.bold(`[DEMON BOT V7] Loading commands...`));
-
-    const sessionDir = path.join(__dirname, config.SESSION_DIR);
+    const sessionDir = config.SESSION_DIR;
     fs.ensureDirSync(sessionDir);
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
     const { version } = await fetchLatestBaileysVersion();
 
-    console.log(chalk.green(`[DEMON BOT V7] Using WA version: ${version.join(".")}`));
+    console.log(chalk.green(`[${config.BOT_NAME}] WA version: ${Array.isArray(version) ? version.join(".") : version}`));
+    addLog("info", `Baileys v${Array.isArray(version) ? version.join(".") : version}`);
+
+    // Cleanup old socket
+    if (sock) { try { sock.ev.removeAllListeners(); sock.end(); } catch(e) {} sock = null; global.__sock = null; }
 
     sock = makeWASocket({
       version,
@@ -234,51 +280,59 @@ async function startBot() {
       generateHighQualityLinkPreview: true,
     });
 
-    // ── QR / Pairing Code ──────────────────────────────────────
+    global.__sock = sock;
+
+    // ── Creds update ───────────────────────────────────────
+    sock.ev.on("creds.update", saveCreds);
+
+    // ── Connection Updates ─────────────────────────────────
     sock.ev.on("connection.update", async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
         if (global.__WANT_PAIRING && global.__PAIRING_PHONE) {
-          // Request pairing code instead of QR
+          // ── Pairing Code (demon-bot: no delay, immediate request) ──
           try {
             const code = await sock.requestPairingCode(global.__PAIRING_PHONE);
             global.__BOT_STATE.pairingCode = code;
             global.__BOT_STATE.qr = null;
-            io.emit("pairingCode", code);
-            console.log(chalk.yellow(`[PAIRING CODE] ${code}`));
-          } catch (e) {
-            console.error(`[PAIRING] Error: ${e.message}`);
+            global.__BOT_STATE.connection = "connecting";
+            io.emit("pairingCode", { code, phoneNumber: global.__PAIRING_PHONE });
+            addLog("success", `📱 PAIRING CODE: ${code}`);
+            console.log(chalk.green.bold(`\n📱 PAIRING CODE: ${chalk.yellow.bold(code)}\n`));
+          } catch (err) {
+            addLog("error", `Pairing error: ${err.message}`);
+            io.emit("pairingError", { msg: err.message });
           }
         } else {
-          // Generate QR image
+          // ── QR Code ──────────────────────────────────────
           try {
             const qrDataUrl = await QRCode.toDataURL(qr, { errorCorrectionLevel: "H", margin: 1, scale: 6 });
             global.__BOT_STATE.qr = qrDataUrl;
+            global.__BOT_STATE.pairingCode = null;
             global.__BOT_STATE.connection = "qr";
             io.emit("qr", qrDataUrl);
-            console.log(chalk.yellow(`[QR CODE] Scan the QR code on the dashboard`));
-          } catch (e) {
-            console.error(`[QR] Error generating QR: ${e.message}`);
+            addLog("info", "📷 QR Code ready — scan with WhatsApp");
+          } catch (err) {
+            addLog("error", `QR error: ${err.message}`);
           }
         }
       }
 
       if (connection === "close") {
-        const shouldReconnect =
-          lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
         global.__BOT_STATE.connection = "close";
         global.__BOT_STATE.qr = null;
-        io.emit("state", { connection: "close" });
-        console.log(chalk.red(`[DEMON BOT V7] Connection closed. Reconnecting: ${shouldReconnect}`));
+        io.emit("connectionState", { state: "close" });
+
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        addLog("warn", `Connection closed | code=${lastDisconnect?.error?.output?.statusCode} | reconnect=${shouldReconnect}`);
 
         if (shouldReconnect) {
           isConnecting = false;
           setTimeout(() => startBot(), 5000);
         } else {
-          console.log(chalk.red(`[DEMON BOT V7] Logged out. Please scan QR again.`));
-          // Clear session and restart
-          fs.removeSync(sessionDir);
+          addLog("error", "Logged out — clearing session");
+          try { fs.removeSync(sessionDir); fs.ensureDirSync(sessionDir); } catch(e) {}
           isConnecting = false;
           setTimeout(() => startBot(), 3000);
         }
@@ -288,77 +342,44 @@ async function startBot() {
         global.__BOT_STATE.connection = "open";
         global.__BOT_STATE.qr = null;
         global.__BOT_STATE.pairingCode = null;
+        global.__WANT_PAIRING = false;
+        global.__PAIRING_PHONE = null;
         global.__BOT_STATE.userJid = sock.user?.id;
         global.__BOT_STATE.userName = sock.user?.name;
-        io.emit("state", {
-          connection: "open",
-          userJid: sock.user?.id,
-          userName: sock.user?.name,
-        });
-        console.log(chalk.green.bold(`\n✅ DEMON BOT V7 CONNECTED!`));
-        console.log(chalk.green(`📱 Number: ${sock.user?.id?.split(":")[0]}`));
-        console.log(chalk.green(`👤 Name: ${sock.user?.name}`));
-        console.log(chalk.cyan(`🤖 Commands loaded: ${getAllCommands().length}`));
-        console.log(chalk.magenta(`🌐 Dashboard: http://localhost:${PORT}\n`));
+        io.emit("connectionState", { state: "open", user: sock.user });
+        addLog("success", `✅ CONNECTED! (${sock.user?.id})`);
+        console.log(chalk.green.bold(`\n🔥 ${config.BOT_NAME} — ONLINE! (${sock.user?.id})\n`));
+        try { loadCommands(); } catch(e) {}
+      }
 
-        // ── Send greeting with logo to owner on connect ─────────
-        setTimeout(async () => {
-          try {
-            const ownerJid = config.OWNER_NUMBER[0] + "@s.whatsapp.net";
-            const logoPath = path.join(__dirname, "src/demon-bot-logo.png");
-            const greetMsg =
-              `╭━━〔 🔥 *${config.BOT_NAME}* 🔥 〕━━⬣\n` +
-              `┃ ✅ *Bot konekte ak siksè!*\n` +
-              `┃ 📱 Nimewo: *${sock.user?.id?.split(":")[0]}*\n` +
-              `┃ 👤 Non: *${sock.user?.name || "Bot"}*\n` +
-              `┃ 🤖 Kòmand: *${getAllCommands().length}*\n` +
-              `┃ ⚡ Prefix: *${config.PREFIX}*\n` +
-              `┃\n` +
-              `┃ Tape *${config.PREFIX}menu* pou wè tout kòmand yo\n` +
-              `╰━━━━━━━━━━━━━━━━━━━━━━━━━━⬣`;
-
-            if (fs.existsSync(logoPath)) {
-              const logoBuffer = fs.readFileSync(logoPath);
-              await sock.sendMessage(ownerJid, {
-                image: logoBuffer,
-                caption: greetMsg,
-              });
-            } else {
-              await sock.sendMessage(ownerJid, { text: greetMsg });
-            }
-          } catch (e) {
-            // Silently ignore if owner message fails
-          }
-        }, 3000);
+      if (connection === "connecting") {
+        global.__BOT_STATE.connection = "connecting";
+        io.emit("connectionState", { state: "connecting" });
       }
     });
 
-    // ── Save Credentials ───────────────────────────────────────
-    sock.ev.on("creds.update", saveCreds);
-
-    // ── Messages ───────────────────────────────────────────────
-    sock.ev.on("messages.upsert", async ({ messages, type }) => {
-      if (type !== "notify") return;
+    // ── Messages ────────────────────────────────────────────
+    sock.ev.on("messages.upsert", async ({ messages }) => {
+      // 🔒 PRIVACY MODE — skip ALL message processing when enabled
+      if (privacyMode) return;
+      
       for (const m of messages) {
-        try {
-          global.__BOT_STATE.stats.messagesProcessed++;
-          await messageHandler(sock, m);
-          io.emit("stats", global.__BOT_STATE.stats);
-        } catch (e) {
-          console.error(`[MSG ERROR] ${e.message}`);
-          global.__BOT_STATE.stats.errors++;
-          io.emit("stats", global.__BOT_STATE.stats);
-        }
+        global.__BOT_STATE.stats.messagesProcessed++;
+        try { await messageHandler(sock, m); global.__BOT_STATE.stats.commandsExecuted++; }
+        catch (e) { global.__BOT_STATE.stats.errors++; }
       }
+      io.emit("stats", global.__BOT_STATE.stats);
     });
 
-    // ── Group Events ────────────────────────────────────────────
+    // ── Group participant events ─────────────────────────────
     sock.ev.on("group-participants.update", async (update) => {
+      if (privacyMode) return;
       const { id, participants, action } = update;
       try {
-        const groupMeta = await sock.groupMetadata(id);
         const { getGroupSettings } = require("./src/lib/database");
+        const groupMeta = await sock.groupMetadata(id);
         const settings = getGroupSettings(id);
+
         if (action === "add" && settings.welcome) {
           for (const jid of participants) {
             const name = `@${jid.split("@")[0]}`;
@@ -372,34 +393,19 @@ async function startBot() {
           for (const jid of participants) {
             const name = `@${jid.split("@")[0]}`;
             await sock.sendMessage(id, {
-              text: `╭━━〔 ${config.BOT_NAME} 〕━━⬣\n┃ 👋 *GOODBYE!*\n┃ ${name} has left the group. 😢\n╰━━━━━━━━━━━━━━━━━━⬣`,
+              text: `╭━━〔 ${config.BOT_NAME} 〕━━⬣\n┃ 😢 *GOODBYE*\n┃ ${name} has left.\n┃ We'll miss you! 💔\n╰━━━━━━━━━━━━━━━━━━⬣`,
               mentions: [jid],
             });
           }
         }
-      } catch (e) { /* silent */ }
+      } catch (e) { /* non-critical */ }
     });
 
-    // ── Graceful Shutdown ───────────────────────────────────────
-    const shutdown = async () => {
-      addLog("info", "Shutting down...");
-      if (sock) await sock.end().catch(() => {});
-      process.exit(0);
-    };
-    process.on("SIGINT", shutdown);
-    process.on("SIGTERM", shutdown);
-    process.on("uncaughtException", (e) => {
-      addLog("error", `Uncaught: ${e.message}`);
-    });
-    process.on("unhandledRejection", (r) => {
-      addLog("error", `Unhandled: ${r}`);
-    });
-
-    isConnecting = false;
   } catch (e) {
-    addLog("error", `Fatal: ${e.message}`);
+    addLog("error", `💥 FATAL: ${e.message}`);
+    console.error(e);
     isConnecting = false;
-    setTimeout(() => startBot(), 8000);
+    setTimeout(() => startBot(), 5000);
   }
 }
 
@@ -408,7 +414,9 @@ async function startBot() {
 // ═══════════════════════════════════════════════════════════════
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(chalk.magenta.bold(`\n🔥 DEMON BOT V7 Dashboard: http://localhost:${PORT}`));
+  console.log(chalk.magenta.bold(`\n🌐 ${config.BOT_NAME} Dashboard: http://0.0.0.0:${PORT}`));
+  console.log(chalk.magenta.bold(`📡 Session dir: ${config.SESSION_DIR}\n`));
+  addLog("info", `Dashboard running on port ${PORT}`);
 });
 
 startBot();
